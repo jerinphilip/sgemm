@@ -1,0 +1,3 @@
+[submodule "3rd-party/ruy"]
+	path = 3rd-party/ruy
+	url = https://github.com/google/ruy/
