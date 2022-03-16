@@ -3,6 +3,9 @@
 #include <memory>
 #include <vector>
 
+#include "stub_tensor.h"
+#include <ruy/ruy.h>
+
 #if MKL_FOUND
 #include <mkl.h>
 #elif BLAS_FOUND
@@ -19,64 +22,18 @@
     std::abort();                                                              \
   } while (0)
 
-namespace marian {
-
-struct Shape {
-  Shape(size_t rows, size_t cols) : rows_(rows), cols_(cols) {}
-  size_t elements() const { return rows_ * cols_; }
-  size_t operator[](int dimension) const {
-    if (dimension == 0)
-      return rows_;
-    if (dimension == 1)
-      return cols_;
-    // TODO(jerin): Fix this
-    if (dimension == -1)
-      return rows_;
-    if (dimension == -2)
-      return cols_;
-
-    return -1;
-  }
-
-private:
-  size_t rows_;
-  size_t cols_;
-};
-
-// Minimum stub
-struct _Tensor {
-public:
-  _Tensor(size_t rows, size_t cols) : shape_(rows, cols), data_(rows * cols) {
-    std::fill(data_.begin(), data_.end(), 1);
-  }
-  const Shape &shape() { return shape_; }
-  float *data() { return data_.data(); }
-
-private:
-  Shape shape_;
-  std::vector<float> data_;
-};
-
-typedef std::shared_ptr<_Tensor> Tensor;
-
-Tensor make_tensor(size_t rows, size_t cols) {
-  return std::make_shared<_Tensor>(rows, cols);
-}
-
-} // namespace marian
-
 inline void sgemm(bool transA, bool transB, int rows_a, int rows_b, int width,
                   float alpha, float *a, int lda, float *b, int ldb, float beta,
                   float *c, int ldc) {
 #if BLAS_FOUND
 #if WASM_COMPATIBLE_BLAS
   gemm_f32_imp(transA, transB, rows_a, rows_b, width, alpha, a, b, beta, c);
-#else
+#else  // WASM_COMPATIBLE_BLAS
   cblas_sgemm(CblasRowMajor, transA ? CblasTrans : CblasNoTrans,
               transB ? CblasTrans : CblasNoTrans, rows_a, rows_b, width, alpha,
               a, lda, b, ldb, beta, c, ldc);
-#endif
-#else
+#endif // WASM_COMPATIBLE_BLAS
+#else  // BLAS_FOUND
   transA;
   transB;
   rows_a;
@@ -91,13 +48,42 @@ inline void sgemm(bool transA, bool transB, int rows_a, int rows_b, int width,
   c;
   ldc; // make compiler happy
   ABORT("Marian must be compiled with a BLAS library");
-#endif
+#endif // BLAS_FOUND
+}
+
+void MulFloat(marian::Tensor C, marian::Tensor A, marian::Tensor B) {
+  ruy::Context context;
+  size_t m, n, p;
+
+  m = A->shape()[-1];
+  n = B->shape()[-1];
+  p = B->shape()[-2];
+
+  ruy::Matrix<float> lhs;
+  ruy::MakeSimpleLayout(m, n, ruy::Order::kRowMajor, lhs.mutable_layout());
+  lhs.set_data(A->data());
+  ruy::Matrix<float> rhs;
+  ruy::MakeSimpleLayout(n, p, ruy::Order::kColMajor, rhs.mutable_layout());
+  rhs.set_data(B->data());
+  ruy::Matrix<float> dst;
+  ruy::MakeSimpleLayout(m, p, ruy::Order::kColMajor, dst.mutable_layout());
+  dst.set_data(C->data());
+
+  ruy::MulParams<float, float> mul_params;
+  ruy::Mul(lhs, rhs, mul_params, &context, &dst);
+
+  std::cout << "Example Mul, float:\n";
+  std::cout << "LHS:\n" << lhs;
+  std::cout << "RHS:\n" << rhs;
+  std::cout << "Result:\n" << dst << "\n";
 }
 
 void ProdBatchedOld(marian::Tensor C, const marian::Tensor A,
                     const marian::Tensor B, bool transA, bool transB,
                     float beta, float scalar) {
 #if BLAS_FOUND
+  /// The map to the notations below:
+  /// m x k matrix is being multiplied with l x n
   float alpha = scalar;
 
   size_t batchA = A->shape().elements() / (A->shape()[-1] * A->shape()[-2]);
@@ -125,6 +111,7 @@ void ProdBatchedOld(marian::Tensor C, const marian::Tensor A,
   auto strideC = n * m;
 
   auto batchC = std::max(batchA, batchB);
+
 #if MKL_FOUND
   CBLAS_TRANSPOSE transA_forarr = CblasNoTrans;
   CBLAS_TRANSPOSE transB_forarr = CblasNoTrans;
@@ -199,27 +186,13 @@ void ProdBatchedOld(marian::Tensor C, const marian::Tensor A,
 #endif
 }
 
-void print(marian::Tensor &t) {
-  float *A = t->data();
-  size_t rows = t->shape()[0];
-  size_t cols = t->shape()[1];
-  for (size_t i = 0; i < rows; i++) {
-    for (size_t j = 0; j < cols; j++) {
-      if (j != 0) {
-        std::cout << " ";
-      }
-      std::cout << A[i * cols + j];
-    }
-    std::cout << "\n";
-  }
-}
-
 int main() {
   auto A = marian::make_tensor(3, 4);
   auto B = marian::make_tensor(4, 5);
   auto C = marian::make_tensor(3, 5);
   ProdBatchedOld(C, A, B, /*transA=*/false, /*transB=*/false, /*beta=*/0,
                  /*scalar or alpha=*/1);
-  print(C);
+  MulFloat(C, A, B);
+  std::cout << C;
   return 0;
 }
