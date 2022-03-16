@@ -1,5 +1,7 @@
 #include <cstdlib>
 #include <iostream>
+#include <memory>
+#include <vector>
 
 #if MKL_FOUND
 #include <mkl.h>
@@ -18,18 +20,48 @@
   } while (0)
 
 namespace marian {
+
 struct Shape {
-  size_t elements() const { return 1; }
-  size_t operator[](int dimension) { return 1; }
+  Shape(size_t rows, size_t cols) : rows_(rows), cols_(cols) {}
+  size_t elements() const { return rows_ * cols_; }
+  size_t operator[](int dimension) const {
+    if (dimension == 0)
+      return rows_;
+    if (dimension == 1)
+      return cols_;
+    // TODO(jerin): Fix this
+    if (dimension == -1)
+      return rows_;
+    if (dimension == -2)
+      return cols_;
+
+    return -1;
+  }
+
+private:
+  size_t rows_;
+  size_t cols_;
 };
+
 // Minimum stub
-struct Tensor {
+struct _Tensor {
 public:
+  _Tensor(size_t rows, size_t cols) : shape_(rows, cols), data_(rows * cols) {
+    std::fill(data_.begin(), data_.end(), 1);
+  }
   const Shape &shape() { return shape_; }
+  float *data() { return data_.data(); }
 
 private:
   Shape shape_;
+  std::vector<float> data_;
 };
+
+typedef std::shared_ptr<_Tensor> Tensor;
+
+Tensor make_tensor(size_t rows, size_t cols) {
+  return std::make_shared<_Tensor>(rows, cols);
+}
 
 } // namespace marian
 
@@ -167,4 +199,27 @@ void ProdBatchedOld(marian::Tensor C, const marian::Tensor A,
 #endif
 }
 
-int main() { return 0; }
+void print(marian::Tensor &t) {
+  float *A = t->data();
+  size_t rows = t->shape()[0];
+  size_t cols = t->shape()[1];
+  for (size_t i = 0; i < rows; i++) {
+    for (size_t j = 0; j < cols; j++) {
+      if (j != 0) {
+        std::cout << " ";
+      }
+      std::cout << A[i * cols + j];
+    }
+    std::cout << "\n";
+  }
+}
+
+int main() {
+  auto A = marian::make_tensor(3, 4);
+  auto B = marian::make_tensor(4, 5);
+  auto C = marian::make_tensor(3, 5);
+  ProdBatchedOld(C, A, B, /*transA=*/false, /*transB=*/false, /*beta=*/0,
+                 /*scalar or alpha=*/1);
+  print(C);
+  return 0;
+}
