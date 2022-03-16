@@ -12,9 +12,9 @@ struct Shape {
       return cols_;
     // TODO(jerin): Fix this
     if (dimension == -1)
-      return rows_;
-    if (dimension == -2)
       return cols_;
+    if (dimension == -2)
+      return rows_;
 
     return -1;
   }

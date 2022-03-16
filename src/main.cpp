@@ -53,29 +53,25 @@ inline void sgemm(bool transA, bool transB, int rows_a, int rows_b, int width,
 
 void MulFloat(marian::Tensor C, marian::Tensor A, marian::Tensor B) {
   ruy::Context context;
-  size_t m, n, p;
+  size_t m, k, n;
 
-  m = A->shape()[-1];
+  m = A->shape()[-2];
+  k = A->shape()[-1];
+  // l = B->shape()[-2];
   n = B->shape()[-1];
-  p = B->shape()[-2];
 
   ruy::Matrix<float> lhs;
-  ruy::MakeSimpleLayout(m, n, ruy::Order::kRowMajor, lhs.mutable_layout());
+  ruy::MakeSimpleLayout(m, k, ruy::Order::kRowMajor, lhs.mutable_layout());
   lhs.set_data(A->data());
   ruy::Matrix<float> rhs;
-  ruy::MakeSimpleLayout(n, p, ruy::Order::kColMajor, rhs.mutable_layout());
+  ruy::MakeSimpleLayout(k, n, ruy::Order::kRowMajor, rhs.mutable_layout());
   rhs.set_data(B->data());
   ruy::Matrix<float> dst;
-  ruy::MakeSimpleLayout(m, p, ruy::Order::kColMajor, dst.mutable_layout());
+  ruy::MakeSimpleLayout(m, n, ruy::Order::kRowMajor, dst.mutable_layout());
   dst.set_data(C->data());
 
   ruy::MulParams<float, float> mul_params;
   ruy::Mul(lhs, rhs, mul_params, &context, &dst);
-
-  std::cout << "Example Mul, float:\n";
-  std::cout << "LHS:\n" << lhs;
-  std::cout << "RHS:\n" << rhs;
-  std::cout << "Result:\n" << dst << "\n";
 }
 
 void ProdBatchedOld(marian::Tensor C, const marian::Tensor A,
@@ -187,12 +183,21 @@ void ProdBatchedOld(marian::Tensor C, const marian::Tensor A,
 }
 
 int main() {
-  auto A = marian::make_tensor(3, 4);
-  auto B = marian::make_tensor(4, 5);
-  auto C = marian::make_tensor(3, 5);
-  ProdBatchedOld(C, A, B, /*transA=*/false, /*transB=*/false, /*beta=*/0,
+  const size_t m = 20, k = 10, n = 30;
+  auto A = marian::make_tensor(m, k);
+  auto B = marian::make_tensor(k, n);
+
+  auto C_old = marian::make_tensor(m, n);
+
+  // With normal path
+  ProdBatchedOld(C_old, A, B, /*transA=*/false, /*transB=*/false, /*beta=*/0,
                  /*scalar or alpha=*/1);
-  MulFloat(C, A, B);
-  std::cout << C;
+  std::cout << "Old\n" << C_old;
+
+  // With Ruy
+  auto C_ruy = marian::make_tensor(m, n);
+  MulFloat(C_ruy, A, B);
+  std::cout << "Ruy:\n" << C_ruy;
+
   return 0;
 }
