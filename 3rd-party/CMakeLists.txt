@@ -8,8 +8,6 @@ set(CPUINFO_BUILD_TOOLS      OFF CACHE BOOL " " FORCE)
 add_subdirectory(ruy/third_party/cpuinfo EXCLUDE_FROM_ALL)
 add_subdirectory(ruy EXCLUDE_FROM_ALL)
 
-if(COMPILE_TESTS)
-   add_subdirectory(ruy/third_party/googletest EXCLUDE_FROM_ALL)
-endif(COMPILE_TESTS)
+add_subdirectory(ruy/third_party/googletest EXCLUDE_FROM_ALL)
 
 

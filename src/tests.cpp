@@ -1,9 +1,20 @@
+
+#include <cassert>
+#include <iostream>
+#include "gtest/gtest.h"
+
 #include "gemm.h"
 #include "tensor.h"
 
-#include <iostream>
+TEST(Tensor, creation) {
+  using namespace marian;
+  Tensor A = make_tensor({3, 4});
+  Tensor B = make_tensor({1, 3, 4});
+  std::cout << A << std::endl;
+  ASSERT_EQ(true, true);
+}
 
-int main() {
+TEST(Simple, RuyVsBLAS) {
   const size_t m = 20, k = 10, n = 30;
   auto A = marian::make_tensor({1, m, k});
   auto B = marian::make_tensor({1, k, n});
@@ -25,5 +36,6 @@ int main() {
   MulFloat(C_ruy, A, B);
   std::cout << "Ruy:\n" << C_ruy;
 
-  return 0;
+  using marian::is_close;
+  ASSERT_EQ(is_close(C_ruy, C_old), true);
 }
