@@ -4,7 +4,7 @@
 #include <vector>
 
 #include <ruy/ruy.h>
-#include "stub_tensor.h"
+#include "tensor.h"
 
 #if MKL_FOUND
 #include <mkl.h>
@@ -15,12 +15,6 @@
 #include <cblas.h>
 #endif  // WASM_COMPATIBLE_BLAS
 #endif
-
-#define ABORT(s)                                \
-  do {                                          \
-    std::cerr << "Aborted: " << s << std::endl; \
-    std::abort();                               \
-  } while(0)
 
 inline void sgemm(bool transA,
                   bool transB,
@@ -107,8 +101,8 @@ void ProdBatchedOld(marian::Tensor C,
   /// m x k matrix is being multiplied with l x n
   float alpha = scalar;
 
-  size_t batchA = A->shape().elements() / (A->shape()[-1] * A->shape()[-2]);
-  size_t batchB = B->shape().elements() / (B->shape()[-1] * B->shape()[-2]);
+  size_t batchA = A->shape().size() / (A->shape()[-1] * A->shape()[-2]);
+  size_t batchB = B->shape().size() / (B->shape()[-1] * B->shape()[-2]);
 
   size_t m = A->shape()[-2];
   size_t k = A->shape()[-1];
@@ -230,10 +224,10 @@ void ProdBatchedOld(marian::Tensor C,
 
 int main() {
   const size_t m = 20, k = 10, n = 30;
-  auto A = marian::make_tensor(m, k);
-  auto B = marian::make_tensor(k, n);
+  auto A = marian::make_tensor({m, k});
+  auto B = marian::make_tensor({k, n});
 
-  auto C_old = marian::make_tensor(m, n);
+  auto C_old = marian::make_tensor({m, n});
 
   // With normal path
   ProdBatchedOld(C_old,
@@ -246,7 +240,7 @@ int main() {
   std::cout << "Old\n" << C_old;
 
   // With Ruy
-  auto C_ruy = marian::make_tensor(m, n);
+  auto C_ruy = marian::make_tensor({m, n});
   MulFloat(C_ruy, A, B);
   std::cout << "Ruy:\n" << C_ruy;
 

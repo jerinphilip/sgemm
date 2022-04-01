@@ -16,3 +16,6 @@ target_link_libraries(main PRIVATE ${MKL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${
 target_compile_definitions(main PUBLIC MKL_FOUND BLAS_FOUND)
 target_include_directories(main PRIVATE ${MKL_INCLUDE_DIR})
 
+add_executable(tests src/tests.cpp)
+target_link_libraries(tests gtest_main gtest)
+
