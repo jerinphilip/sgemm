@@ -3,8 +3,8 @@
 #include <memory>
 #include <vector>
 
-#include "stub_tensor.h"
 #include <ruy/ruy.h>
+#include "stub_tensor.h"
 
 #if MKL_FOUND
 #include <mkl.h>
@@ -13,27 +13,48 @@
 #include "3rd_party/onnxjs/src/wasm-ops/gemm.h"
 #else
 #include <cblas.h>
-#endif // WASM_COMPATIBLE_BLAS
+#endif  // WASM_COMPATIBLE_BLAS
 #endif
 
-#define ABORT(s)                                                               \
-  do {                                                                         \
-    std::cerr << "Aborted: " << s << std::endl;                                \
-    std::abort();                                                              \
-  } while (0)
+#define ABORT(s)                                \
+  do {                                          \
+    std::cerr << "Aborted: " << s << std::endl; \
+    std::abort();                               \
+  } while(0)
 
-inline void sgemm(bool transA, bool transB, int rows_a, int rows_b, int width,
-                  float alpha, float *a, int lda, float *b, int ldb, float beta,
-                  float *c, int ldc) {
+inline void sgemm(bool transA,
+                  bool transB,
+                  int rows_a,
+                  int rows_b,
+                  int width,
+                  float alpha,
+                  float *a,
+                  int lda,
+                  float *b,
+                  int ldb,
+                  float beta,
+                  float *c,
+                  int ldc) {
 #if BLAS_FOUND
 #if WASM_COMPATIBLE_BLAS
   gemm_f32_imp(transA, transB, rows_a, rows_b, width, alpha, a, b, beta, c);
-#else  // WASM_COMPATIBLE_BLAS
-  cblas_sgemm(CblasRowMajor, transA ? CblasTrans : CblasNoTrans,
-              transB ? CblasTrans : CblasNoTrans, rows_a, rows_b, width, alpha,
-              a, lda, b, ldb, beta, c, ldc);
-#endif // WASM_COMPATIBLE_BLAS
-#else  // BLAS_FOUND
+#else   // WASM_COMPATIBLE_BLAS
+  cblas_sgemm(CblasRowMajor,
+              transA ? CblasTrans : CblasNoTrans,
+              transB ? CblasTrans : CblasNoTrans,
+              rows_a,
+              rows_b,
+              width,
+              alpha,
+              a,
+              lda,
+              b,
+              ldb,
+              beta,
+              c,
+              ldc);
+#endif  // WASM_COMPATIBLE_BLAS
+#else   // BLAS_FOUND
   transA;
   transB;
   rows_a;
@@ -46,9 +67,9 @@ inline void sgemm(bool transA, bool transB, int rows_a, int rows_b, int width,
   ldb;
   beta;
   c;
-  ldc; // make compiler happy
+  ldc;  // make compiler happy
   ABORT("Marian must be compiled with a BLAS library");
-#endif // BLAS_FOUND
+#endif  // BLAS_FOUND
 }
 
 void MulFloat(marian::Tensor C, marian::Tensor A, marian::Tensor B) {
@@ -74,9 +95,13 @@ void MulFloat(marian::Tensor C, marian::Tensor A, marian::Tensor B) {
   ruy::Mul(lhs, rhs, mul_params, &context, &dst);
 }
 
-void ProdBatchedOld(marian::Tensor C, const marian::Tensor A,
-                    const marian::Tensor B, bool transA, bool transB,
-                    float beta, float scalar) {
+void ProdBatchedOld(marian::Tensor C,
+                    const marian::Tensor A,
+                    const marian::Tensor B,
+                    bool transA,
+                    bool transB,
+                    float beta,
+                    float scalar) {
 #if BLAS_FOUND
   /// The map to the notations below:
   /// m x k matrix is being multiplied with l x n
@@ -87,19 +112,19 @@ void ProdBatchedOld(marian::Tensor C, const marian::Tensor A,
 
   size_t m = A->shape()[-2];
   size_t k = A->shape()[-1];
-  if (transA)
+  if(transA)
     std::swap(m, k);
 
   size_t l = B->shape()[-2];
   size_t n = B->shape()[-1];
-  if (transB)
+  if(transB)
     std::swap(l, n);
 
   size_t lda = A->shape()[-1];
   size_t ldb = B->shape()[-1];
   size_t ldc = B->shape()[-1];
 
-  if (transB)
+  if(transB)
     ldc = B->shape()[-2];
 
   auto strideB = batchB == 1 ? 0 : n * k;
@@ -112,10 +137,10 @@ void ProdBatchedOld(marian::Tensor C, const marian::Tensor A,
   CBLAS_TRANSPOSE transA_forarr = CblasNoTrans;
   CBLAS_TRANSPOSE transB_forarr = CblasNoTrans;
 
-  if (transA)
+  if(transA)
     transA_forarr = CblasTrans;
 
-  if (transB)
+  if(transB)
     transB_forarr = CblasTrans;
 
   /* cblas_sgemm_batch allows us to group all the small GEMMs that are done in a
@@ -132,7 +157,7 @@ void ProdBatchedOld(marian::Tensor C, const marian::Tensor A,
    * integer arguments as the MKL_INT datatype
    */
 
-  static const constexpr size_t group_count = 1; // We have one group
+  static const constexpr size_t group_count = 1;  // We have one group
   const std::vector<CBLAS_TRANSPOSE> transa_arr(group_count, transA_forarr);
   const std::vector<CBLAS_TRANSPOSE> transb_arr(group_count, transB_forarr);
   const std::vector<MKL_INT> m_arr(group_count, (MKL_INT)m);
@@ -143,9 +168,9 @@ void ProdBatchedOld(marian::Tensor C, const marian::Tensor A,
   const std::vector<MKL_INT> lda_arr(group_count, (MKL_INT)lda);
   const std::vector<MKL_INT> ldb_arr(group_count, (MKL_INT)ldb);
   const std::vector<MKL_INT> ldc_arr(group_count, (MKL_INT)ldc);
-  const std::vector<MKL_INT> group_size(
-      group_count, (MKL_INT)batchC); // Group size specifies number of GEMM
-                                     // operations per group (Which is batchC)
+  const std::vector<MKL_INT> group_size(group_count,
+                                        (MKL_INT)batchC);  // Group size specifies number of GEMM
+                                                           // operations per group (Which is batchC)
 
   std::vector<const float *> a_array(batchC, nullptr);
   std::vector<const float *> b_array(batchC, nullptr);
@@ -153,21 +178,42 @@ void ProdBatchedOld(marian::Tensor C, const marian::Tensor A,
 
   // This loop initializes the array pointers in the same way as the for loop
   // in the normal sgemm version a few lines below
-  for (size_t i = 0; i < batchC; ++i) {
+  for(size_t i = 0; i < batchC; ++i) {
     a_array[i] = A->data() + (i % batchA) * strideA;
     b_array[i] = B->data() + (i % batchB) * strideB;
     c_array[i] = C->data() + i * strideC;
   }
-  cblas_sgemm_batch(CblasRowMajor, &transa_arr[0], &transb_arr[0], &m_arr[0],
-                    &n_arr[0], &k_arr[0], &alpha_arr[0], &a_array[0],
-                    &lda_arr[0], &b_array[0], &ldb_arr[0], &beta_arr[0],
-                    &c_array[0], &ldc_arr[0], group_count, &group_size[0]);
+  cblas_sgemm_batch(CblasRowMajor,
+                    &transa_arr[0],
+                    &transb_arr[0],
+                    &m_arr[0],
+                    &n_arr[0],
+                    &k_arr[0],
+                    &alpha_arr[0],
+                    &a_array[0],
+                    &lda_arr[0],
+                    &b_array[0],
+                    &ldb_arr[0],
+                    &beta_arr[0],
+                    &c_array[0],
+                    &ldc_arr[0],
+                    group_count,
+                    &group_size[0]);
 #else
-  for (size_t i = 0; i < batchC; ++i) {
-    sgemm(transA, transB, (int)m, (int)n, (int)k, alpha,
-          A->data() + (i % batchA) * strideA, (int)lda,
-          B->data() + (i % batchB) * strideB, (int)ldb, beta,
-          C->data() + i * strideC, (int)ldc);
+  for(size_t i = 0; i < batchC; ++i) {
+    sgemm(transA,
+          transB,
+          (int)m,
+          (int)n,
+          (int)k,
+          alpha,
+          A->data() + (i % batchA) * strideA,
+          (int)lda,
+          B->data() + (i % batchB) * strideB,
+          (int)ldb,
+          beta,
+          C->data() + i * strideC,
+          (int)ldc);
   }
 #endif
 #else
@@ -190,7 +236,12 @@ int main() {
   auto C_old = marian::make_tensor(m, n);
 
   // With normal path
-  ProdBatchedOld(C_old, A, B, /*transA=*/false, /*transB=*/false, /*beta=*/0,
+  ProdBatchedOld(C_old,
+                 A,
+                 B,
+                 /*transA=*/false,
+                 /*transB=*/false,
+                 /*beta=*/0,
                  /*scalar or alpha=*/1);
   std::cout << "Old\n" << C_old;
 
