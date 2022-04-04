@@ -28,19 +28,34 @@ int main(int argc, char *argv[]) {
 
   CLI11_PARSE(app, argc, argv);
 
-  auto A = marian::make_tensor({batchSize, M, K});
-  auto B = marian::make_tensor({batchSize, K, N});
+  marian::Tensor A, B, C;
+
+  switch(transA) {
+    case 'T': A = marian::make_tensor({batchSize, K, M}); break;
+    case 'N': A = marian::make_tensor({batchSize, M, K}); break;
+    default: ABORT("Unknown transA argument {}.", transA); break;
+  }
+
+  switch(transB) {
+    case 'T': B = marian::make_tensor({batchSize, N, K}); break;
+    case 'N': B = marian::make_tensor({batchSize, K, N}); break;
+    default: ABORT("Unknown transB argument {}.", transA); break;
+  }
 
   auto C_old = marian::make_tensor({batchSize, M, N});
 
   // With normal path
   ProdBatchedOld(C_old, A, B, (transA == 'T'), (transB == 'T'), beta, alpha);
-  std::cout << "Old\n" << C_old;
+  std::cerr << "Old\n" << C_old;
 
   // With Ruy
   auto C_ruy = marian::make_tensor({batchSize, M, N});
   MulFloat(C_ruy, A, B);
-  std::cout << "Ruy:\n" << C_ruy;
+  std::cerr << "Ruy:\n" << C_ruy;
+
+  std::cerr << "\n";
+  std::cout << (marian::is_close(C_ruy, C_old) ? "[SUCCESS] Ruy = Old" : "[FAIL] Ruy != Old")
+            << "\n";
 
   return 0;
 }
