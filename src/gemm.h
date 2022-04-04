@@ -68,34 +68,61 @@ inline void sgemm(bool transA,
 #endif  // BLAS_FOUND
 }
 
-void MulFloat(marian::Tensor C, marian::Tensor A, marian::Tensor B) {
+void gemmRuy(marian::Tensor C,
+             marian::Tensor A,
+             marian::Tensor B,
+             bool transA,
+             bool transB,
+             float alpha,
+             float beta) {
   ruy::Context context;
-  size_t m, k, n;
+  size_t M, K, L, N;
 
   // N1 x N2 x .. N_k x rows x cols
   //                     -2  x - 1
 
-  m = A->shape()[-2];  // Rows
-  k = A->shape()[-1];
-  // l = B->shape()[-2];
-  n = B->shape()[-1];
+  if(transA) {
+    K = A->shape()[-2];
+    M = A->shape()[-1];
 
-  size_t batchSize = A->shape().size() / (m * k);
+  } else {
+    M = A->shape()[-2];  // Rows-A
+    K = A->shape()[-1];  // Cols-A
+  }
 
-  size_t strideA = m * k;
-  size_t strideB = k * n;
-  size_t strideC = m * n;
+  if(transB) {
+    N = B->shape()[-2];
+    L = B->shape()[-1];
+  } else {
+    L = B->shape()[-2];
+    N = B->shape()[-1];
+  }
+
+  ABORT_IF(L != K, "[{} x {}]x [{} x {}]; {} != {}", M, K, L, N, K, L);
+
+  // This is BLAS SGEMM, all ordering coming in is column-major.
+
+  size_t batchSize = A->shape().size() / (M * K);
+
+  size_t strideA = M * K;
+  size_t strideB = K * N;
+  size_t strideC = M * N;
+
+  const auto orderA = (transA ? ruy::Order::kColMajor : ruy::Order::kRowMajor);
+  const auto orderB = (transB ? ruy::Order::kColMajor : ruy::Order::kRowMajor);
 
   // Explicit batching. Do we have something better? Inspect ruy?
   for(size_t batchId = 0; batchId < batchSize; batchId++) {
     ruy::Matrix<float> lhs;
-    ruy::MakeSimpleLayout(m, k, ruy::Order::kRowMajor, lhs.mutable_layout());
+    ruy::MakeSimpleLayout(M, K, orderA, lhs.mutable_layout());
     lhs.set_data(A->data() + batchId * strideA);
+
     ruy::Matrix<float> rhs;
-    ruy::MakeSimpleLayout(k, n, ruy::Order::kRowMajor, rhs.mutable_layout());
+    ruy::MakeSimpleLayout(K, N, orderB, rhs.mutable_layout());
     rhs.set_data(B->data() + batchId * strideB);
+
     ruy::Matrix<float> dst;
-    ruy::MakeSimpleLayout(m, n, ruy::Order::kRowMajor, dst.mutable_layout());
+    ruy::MakeSimpleLayout(M, N, ruy::Order::kRowMajor, dst.mutable_layout());
     dst.set_data(C->data() + batchId * strideC);
 
     ruy::MulParams<float, float> mul_params;

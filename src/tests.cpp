@@ -33,7 +33,13 @@ void Batched(size_t batchSize) {
 
   // With Ruy
   auto C_ruy = marian::make_tensor({batchSize, m, n});
-  MulFloat(C_ruy, A, B);
+  gemmRuy(C_ruy,
+          A,
+          B,
+          /*transA=*/false,
+          /*transB=*/false,
+          /*beta=*/0,
+          /*scalar or alpha=*/1);
   // std::cout << "Ruy:\n" << C_ruy;
 
   using marian::is_close;

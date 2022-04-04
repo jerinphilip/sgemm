@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
 
   // With Ruy
   auto C_ruy = marian::make_tensor({batchSize, M, N});
-  MulFloat(C_ruy, A, B);
+  gemmRuy(C_ruy, A, B, (transA == 'T'), (transB == 'T'), alpha, beta);
   std::cerr << "Ruy:\n" << C_ruy;
 
   std::cerr << "\n";
