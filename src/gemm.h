@@ -72,23 +72,35 @@ void MulFloat(marian::Tensor C, marian::Tensor A, marian::Tensor B) {
   ruy::Context context;
   size_t m, k, n;
 
-  m = A->shape()[-2];
+  // N1 x N2 x .. N_k x rows x cols
+  //                     -2  x - 1
+
+  m = A->shape()[-2];  // Rows
   k = A->shape()[-1];
   // l = B->shape()[-2];
   n = B->shape()[-1];
 
-  ruy::Matrix<float> lhs;
-  ruy::MakeSimpleLayout(m, k, ruy::Order::kRowMajor, lhs.mutable_layout());
-  lhs.set_data(A->data());
-  ruy::Matrix<float> rhs;
-  ruy::MakeSimpleLayout(k, n, ruy::Order::kRowMajor, rhs.mutable_layout());
-  rhs.set_data(B->data());
-  ruy::Matrix<float> dst;
-  ruy::MakeSimpleLayout(m, n, ruy::Order::kRowMajor, dst.mutable_layout());
-  dst.set_data(C->data());
+  size_t batchSize = A->shape().size() / (m * k);
 
-  ruy::MulParams<float, float> mul_params;
-  ruy::Mul(lhs, rhs, mul_params, &context, &dst);
+  size_t strideA = m * k;
+  size_t strideB = k * n;
+  size_t strideC = m * n;
+
+  // Explicit batching. Do we have something better? Inspect ruy?
+  for(size_t batchId = 0; batchId < batchSize; batchId++) {
+    ruy::Matrix<float> lhs;
+    ruy::MakeSimpleLayout(m, k, ruy::Order::kRowMajor, lhs.mutable_layout());
+    lhs.set_data(A->data() + batchId * strideA);
+    ruy::Matrix<float> rhs;
+    ruy::MakeSimpleLayout(k, n, ruy::Order::kRowMajor, rhs.mutable_layout());
+    rhs.set_data(B->data() + batchId * strideB);
+    ruy::Matrix<float> dst;
+    ruy::MakeSimpleLayout(m, n, ruy::Order::kRowMajor, dst.mutable_layout());
+    dst.set_data(C->data() + batchId * strideC);
+
+    ruy::MulParams<float, float> mul_params;
+    ruy::Mul(lhs, rhs, mul_params, &context, &dst);
+  }
 }
 
 void ProdBatchedOld(marian::Tensor C,
