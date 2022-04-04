@@ -111,6 +111,10 @@ void gemmRuy(marian::Tensor C,
   const auto orderA = (transA ? ruy::Order::kColMajor : ruy::Order::kRowMajor);
   const auto orderB = (transB ? ruy::Order::kColMajor : ruy::Order::kRowMajor);
 
+  // TODO: Batch-size could be N-D product?
+  marian::Tensor cOriginal = marian::make_tensor({batchSize, M, N});
+  std::memcpy(cOriginal->data(), C->data(), sizeof(float) * C->shape().size());
+
   // Explicit batching. Do we have something better? Inspect ruy?
   for(size_t batchId = 0; batchId < batchSize; batchId++) {
     ruy::Matrix<float> lhs;
@@ -127,6 +131,14 @@ void gemmRuy(marian::Tensor C,
 
     ruy::MulParams<float, float> mul_params;
     ruy::Mul(lhs, rhs, mul_params, &context, &dst);
+  }
+
+  // standard-cpp scaling implementation
+  // pls compiler autovectorize?
+  float *cData       = C->data();
+  const size_t cSize = C->shape().size();
+  for(size_t i = 0; i < cSize; i++) {
+    cData[i] = alpha * cData[i] + beta * cOriginal->data()[i];
   }
 }
 
