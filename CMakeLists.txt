@@ -15,14 +15,19 @@ set (CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-point
 
 add_subdirectory(3rd-party)
 
+set(EXT_LIBS ${MKL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} ruy)
+set(INCLUDE_DIRS ${MKL_INCLUDE_DIR} ${CMAKE_SOURCE_DIR})
 
-add_executable(main src/main.cpp)
-target_link_libraries(main PRIVATE ${MKL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} ruy)
-target_compile_definitions(main PUBLIC MKL_FOUND BLAS_FOUND)
-target_include_directories(main PRIVATE ${MKL_INCLUDE_DIR} ${CMAKE_SOURCE_DIR})
+list(APPEND BINS main)
+foreach(BIN IN LISTS BINS)
+  add_executable(${BIN} src/${BIN}.cpp)
+  target_link_libraries(${BIN} PRIVATE ${EXT_LIBS})
+  target_compile_definitions(${BIN} PUBLIC MKL_FOUND BLAS_FOUND)
+  target_include_directories(${BIN} PRIVATE ${INCLUDE_DIRS})
+endforeach()
 
 add_executable(tests src/tests.cpp)
-target_link_libraries(tests gtest_main gtest ruy ${MKL_LIBRARIES} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(tests gtest_main gtest ${EXT_LIBS})
 target_compile_definitions(tests PUBLIC MKL_FOUND BLAS_FOUND)
-target_include_directories(tests PRIVATE ${MKL_INCLUDE_DIR})
+target_include_directories(tests PRIVATE ${INCLUDE_DIRS})
 

@@ -7,14 +7,23 @@ int main(int argc, char *argv[]) {
   size_t batchSize = 1;
   size_t M = 20, K = 10, N = 30;
 
+  char transA = 'N';
+  char transB = 'N';
+
+  float alpha = 1.0;
+  float beta  = 0.0;
+
   CLI::App app{"App description"};
-  std::string filename = "default";
 
   // clang-format off
-  app.add_option("-M,--rowsA"     , M         , "Rows of A");
-  app.add_option("-K,--colsA"     , K         , "Cols of A = rows B");
-  app.add_option("-N,--colsB"     , N         , "Cols of B");
-  app.add_option("-B,--batchSize" , batchSize , "Batches to pack together");
+  app.add_option("--batchSize" , batchSize , "Batches to pack together");
+  app.add_option("--rowsA"     , M         , "Rows of A");
+  app.add_option("--colsA"     , K         , "Cols of A = rows B");
+  app.add_option("--colsB"     , N         , "Cols of B");
+  app.add_option("--alpha"     , alpha     , "alpha value");
+  app.add_option("--beta"      , beta      , "beta value");
+  app.add_option("--transA"    , transA    , "Transpose A?");
+  app.add_option("--transB"    , transB    , "Transpose B?");
   // clang-format on
 
   CLI11_PARSE(app, argc, argv);
@@ -25,13 +34,7 @@ int main(int argc, char *argv[]) {
   auto C_old = marian::make_tensor({batchSize, M, N});
 
   // With normal path
-  ProdBatchedOld(C_old,
-                 A,
-                 B,
-                 /*transA=*/false,
-                 /*transB=*/false,
-                 /*beta=*/0,
-                 /*scalar or alpha=*/1);
+  ProdBatchedOld(C_old, A, B, (transA == 'T'), (transB == 'T'), beta, alpha);
   std::cout << "Old\n" << C_old;
 
   // With Ruy
