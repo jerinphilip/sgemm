@@ -5,19 +5,20 @@
 #include <memory>
 #include <vector>
 
+#ifdef MARIAN_USE_RUY_SGEMM
 #include <ruy/ruy.h>
+#endif  // MARIAN_USE_RUY_SGEMM
 #include "tensor.h"
 
-#if MKL_FOUND
+#ifdef MARIAN_USE_MKL
 #include <mkl.h>
-#elif BLAS_FOUND
-#if WASM_COMPATIBLE_BLAS
-#include "3rd_party/onnxjs/src/wasm-ops/gemm.h"
-#else
-#include <cblas.h>
-#endif  // WASM_COMPATIBLE_BLAS
-#endif
+#endif  // MARIAN_USE_MKL
 
+#ifdef WASM_COMPATIBLE_BLAS
+#include "3rd_party/onnxjs/src/wasm-ops/gemm.h"
+#endif  //WASM_COMPATIBLE_BLAS
+
+#ifdef WASM_COMPATIBLE_BLAS
 inline void sgemm(bool transA,
                   bool transB,
                   int rows_a,
@@ -31,10 +32,28 @@ inline void sgemm(bool transA,
                   float beta,
                   float *c,
                   int ldc) {
-#if BLAS_FOUND
-#if WASM_COMPATIBLE_BLAS
   gemm_f32_imp(transA, transB, rows_a, rows_b, width, alpha, a, b, beta, c);
-#else   // WASM_COMPATIBLE_BLAS
+}
+#endif  //WASM_COMPATIBLE_BLAS
+
+#ifdef MARIAN_USE_BLAS
+#include <cblas.h>
+#endif  // MARIAN_USE_BLAS
+
+#ifdef MARIAN_USE_BLAS
+inline void sgemm(bool transA,
+                  bool transB,
+                  int rows_a,
+                  int rows_b,
+                  int width,
+                  float alpha,
+                  float *a,
+                  int lda,
+                  float *b,
+                  int ldb,
+                  float beta,
+                  float *c,
+                  int ldc) {
   cblas_sgemm(CblasRowMajor,
               transA ? CblasTrans : CblasNoTrans,
               transB ? CblasTrans : CblasNoTrans,
@@ -49,24 +68,8 @@ inline void sgemm(bool transA,
               beta,
               c,
               ldc);
-#endif  // WASM_COMPATIBLE_BLAS
-#else   // BLAS_FOUND
-  transA;
-  transB;
-  rows_a;
-  rows_b;
-  width;
-  alpha;
-  a;
-  lda;
-  b;
-  ldb;
-  beta;
-  c;
-  ldc;  // make compiler happy
-  ABORT("Marian must be compiled with a BLAS library");
-#endif  // BLAS_FOUND
 }
+#endif  // MARIAN_USE_BLAS
 
 void gemmRuy(marian::Tensor C,
              marian::Tensor A,
@@ -154,7 +157,6 @@ void ProdBatchedOld(marian::Tensor C,
                     bool transB,
                     float beta,
                     float scalar) {
-#if BLAS_FOUND
   /// The map to the notations below:
   /// m x k matrix is being multiplied with l x n
   float alpha = scalar;
@@ -185,7 +187,7 @@ void ProdBatchedOld(marian::Tensor C,
 
   auto batchC = std::max(batchA, batchB);
 
-#if MKL_FOUND
+#if MARIAN_USE_MKL
   CBLAS_TRANSPOSE transA_forarr = CblasNoTrans;
   CBLAS_TRANSPOSE transB_forarr = CblasNoTrans;
 
@@ -251,7 +253,7 @@ void ProdBatchedOld(marian::Tensor C,
                     &ldc_arr[0],
                     group_count,
                     &group_size[0]);
-#else
+#else   // MARIAN_USE_MKL
   for(size_t i = 0; i < batchC; ++i) {
     sgemm(transA,
           transB,
@@ -267,17 +269,7 @@ void ProdBatchedOld(marian::Tensor C,
           C->data() + i * strideC,
           (int)ldc);
   }
-#endif
-#else
-  C;
-  A;
-  B;
-  transA;
-  transB;
-  beta;
-  scalar;
-  ABORT("You need to compile with MKL in order to use the CPU version");
-#endif
+#endif  // MARIAN_USE_MKL
 }
 
 #ifndef SGEMM_IMPL_

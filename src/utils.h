@@ -8,7 +8,7 @@
 /// replacing `{}` in the template string with whatever `operator<<` for that
 /// type turns it into.
 /// Courtesy Jelmer: https://github.com/browsermt/bergamot-translator/blob/df5db525132fb24b02f80ac07dc98ba02f536e92/src/translator/html.cpp#L62
-std::string format(std::string const &formatTemplate) {
+inline std::string format(std::string const &formatTemplate) {
   return formatTemplate;
 }
 
