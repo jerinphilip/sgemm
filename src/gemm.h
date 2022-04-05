@@ -125,7 +125,7 @@ inline void Gemm<Provider::kBLAS>(bool transA,
   // Converting booleans to CBLAS_TRANSPOSE (char).
   CBLAS_TRANSPOSE cTransA = transA ? CblasTrans : CblasNoTrans;
   CBLAS_TRANSPOSE cTransB = transB ? CblasTrans : CblasNoTrans;
-  cblas_sgemm(CblasRowMajor, cTransA, cTransB, M, K, N, alpha, A, lda, B, ldb, beta, C, ldc);
+  cblas_sgemm(CblasRowMajor, cTransA, cTransB, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
 }
 #endif  // MARIAN_USE_BLAS
 
@@ -150,8 +150,8 @@ inline void inferGemmParamsFromTensor(marian::Tensor C,
                                       bool transA,
                                       bool transB,
                                       size_t &M,
-                                      size_t &K,
                                       size_t &N,
+                                      size_t &K,
                                       size_t &batchSize) {
   // Incoming matrices are row-major storage format.
   // N1 x N2 x .. N_k x rows x cols
@@ -187,7 +187,7 @@ void gemmRuy(marian::Tensor C,
   ruy::Context context;
 
   size_t M, K, N, batchSize;
-  inferGemmParamsFromTensor(C, A, B, transA, transB, M, K, N, batchSize);
+  inferGemmParamsFromTensor(C, A, B, transA, transB, M, N, K, batchSize);
 
   // If we need to transpose, we can swap dimensions in layout claim the matrix is just
   // column-major. Set ordering so transpose.
@@ -334,19 +334,19 @@ void ProdBatchedOld(marian::Tensor C,
                     &group_size[0]);
 #else   // MARIAN_USE_MKL
   for(size_t i = 0; i < batchC; ++i) {
-    sgemm(transA,
-          transB,
-          (int)m,
-          (int)n,
-          (int)k,
-          alpha,
-          A->data() + (i % batchA) * strideA,
-          (int)lda,
-          B->data() + (i % batchB) * strideB,
-          (int)ldb,
-          beta,
-          C->data() + i * strideC,
-          (int)ldc);
+    Gemm<Provider::kBLAS>(transA,
+                          transB,
+                          (int)m,
+                          (int)n,
+                          (int)k,
+                          alpha,
+                          A->data() + (i % batchA) * strideA,
+                          (int)lda,
+                          B->data() + (i % batchB) * strideB,
+                          (int)ldb,
+                          beta,
+                          C->data() + i * strideC,
+                          (int)ldc);
   }
 #endif  // MARIAN_USE_MKL
 }

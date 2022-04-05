@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(MARIAN_USE_MKL "Compile with MKL support" ON)
+option(MARIAN_USE_OPENBLAS "Compile with OpenBLAS" OFF)
+option(MARIAN_USE_CBLAS "Compile with CBLAS" OFF)
 option(MARIAN_USE_RUY_SGEMM "Compile with ruy sgemm" ON)
 option(MARIAN_USE_ONNX_SGEMM "Compile with ONNX sgemm" OFF)
 option(MARIAN_USE_APPLE_ACCELERATE "Compile with apple-accelerate support" ON)
@@ -17,11 +19,23 @@ target_include_directories(marian_sgemm PUBLIC ${CMAKE_SOURCE_DIR})
 
 
 if(MARIAN_USE_MKL)
-	set(BLA_VENDOR Intel10_64ilp)
-	find_package(MKL)
+  find_package(MKL REQUIRED)
   target_compile_definitions(marian_sgemm PUBLIC MARIAN_USE_MKL)
   target_link_libraries(marian_sgemm PUBLIC MKL::MKL)
 endif(MARIAN_USE_MKL)
+
+if(MARIAN_USE_OPENBLAS)
+  set(BLA_VENDOR OpenBLAS)
+  find_package(BLAS REQUIRED)
+  target_compile_definitions(marian_sgemm PUBLIC MARIAN_USE_BLAS)
+  target_link_libraries(marian_sgemm PUBLIC CBLAS::CBLAS)
+endif(MARIAN_USE_OPENBLAS)
+
+if(MARIAN_USE_CBLAS)
+  find_package(CBLAS REQUIRED)
+  target_compile_definitions(marian_sgemm PUBLIC MARIAN_USE_BLAS)
+  target_link_libraries(marian_sgemm PUBLIC CBLAS::CBLAS)
+endif(MARIAN_USE_CBLAS)
 
 
 if(MARIAN_USE_RUY_SGEMM)
