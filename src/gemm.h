@@ -73,8 +73,8 @@ void gemmRuy(marian::Tensor C,
              marian::Tensor B,
              bool transA,
              bool transB,
-             float alpha,
-             float beta) {
+             float beta,
+             float alpha) {
   ruy::Context context;
   size_t M, K, L, N;
 
