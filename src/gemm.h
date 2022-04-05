@@ -16,60 +16,166 @@
 
 #ifdef WASM_COMPATIBLE_BLAS
 #include "3rd_party/onnxjs/src/wasm-ops/gemm.h"
-#endif  //WASM_COMPATIBLE_BLAS
-
-#ifdef WASM_COMPATIBLE_BLAS
-inline void sgemm(bool transA,
-                  bool transB,
-                  int rows_a,
-                  int rows_b,
-                  int width,
-                  float alpha,
-                  float *a,
-                  int lda,
-                  float *b,
-                  int ldb,
-                  float beta,
-                  float *c,
-                  int ldc) {
-  gemm_f32_imp(transA, transB, rows_a, rows_b, width, alpha, a, b, beta, c);
-}
-#endif  //WASM_COMPATIBLE_BLAS
+#endif  // WASM_COMPATIBLE_BLAS
 
 #ifdef MARIAN_USE_BLAS
 #include <cblas.h>
 #endif  // MARIAN_USE_BLAS
 
+namespace marian {
+namespace gemm {
+
+// The following is about to be used further down below in templating multiple
+// implementations, allowing them to exist in an ODR compatible way.
+enum class Provider {
+  kEigen,  // Eigen Library; Portable fallback. Works on most platforms. Used by WASM
+  kMKL,    //
+  kBLAS,   //
+  kRuy     // Ruy, targetting ARM. X86 etc available, but not best.
+};
+
+// A marian connected GEMM function. Arguments are in the order of the
+// expression being evaluated:
+//
+//    C = alpha * op(A) * op(B) + beta*C
+//
+// transA, transB are boolean flags deciding whether to transpose the matrices
+// A or B.
+//
+// op(A) is an M x K matrix, op(B) is a K x N matrix. Supply M, K, N accordingly.
+//
+// We do not bother about lda, ldb, ldc, as all calls that reach here
+// come though `ProdBatched` and sub-matrices / views are not expected.
+// In this case, we can infer what LDA is from M, N, K, transA, transB.
+
+template <enum Provider>
+inline void Gemm(bool transA,
+                 bool transB,
+                 int M,
+                 int N,
+                 int K,
+                 float alpha,
+                 float *A,
+                 int lda,
+                 float *B,
+                 int ldb,
+                 float beta,
+                 float *C,
+                 int ldc) {
+  ABORT("No available GEMM Implementation;");
+}
+
+// See documentation for Gemm above. Adds a batchSize parameter, which is used
+// if the available libraries provide one. Else, we resort to using an explicit
+// batching.
+template <enum Provider>
+inline void GemmBatched(bool transA,
+                        bool transB,
+                        int batchSize,
+                        int M,
+                        int N,
+                        int K,
+                        float alpha,
+                        float *A,
+                        int lda,
+                        float *B,
+                        int ldb,
+                        float beta,
+                        float *C,
+                        int ldc) {
+  ABORT("No available GEMM Implementation;");
+}
+
+#ifdef WASM_COMPATIBLE_BLAS
+template <>
+inline void Gemm<Provider::kEigen>(bool transA,
+                                   bool transB,
+                                   int M,
+                                   int N,
+                                   int K,
+                                   float alpha,
+                                   float *A,
+                                   int lda,
+                                   float *B,
+                                   int ldb,
+                                   float beta,
+                                   float *C,
+                                   int ldc) {
+  // TODO: Use lda, ldb, ldc skipping ONNXJS and adding Eigen
+  gemm_f32_imp(transA, transB, M, K, N, alpha, A, B, beta, C);
+}
+#endif  //WASM_COMPATIBLE_BLAS
+
 #ifdef MARIAN_USE_BLAS
-inline void sgemm(bool transA,
-                  bool transB,
-                  int rows_a,
-                  int rows_b,
-                  int width,
-                  float alpha,
-                  float *a,
-                  int lda,
-                  float *b,
-                  int ldb,
-                  float beta,
-                  float *c,
-                  int ldc) {
-  cblas_sgemm(CblasRowMajor,
-              transA ? CblasTrans : CblasNoTrans,
-              transB ? CblasTrans : CblasNoTrans,
-              rows_a,
-              rows_b,
-              width,
-              alpha,
-              a,
-              lda,
-              b,
-              ldb,
-              beta,
-              c,
-              ldc);
+
+template <>
+inline void Gemm<Provider::kBLAS>(bool transA,
+                                  bool transB,
+                                  int M,
+                                  int N,
+                                  int K,
+                                  float alpha,
+                                  float *A,
+                                  int lda,
+                                  float *B,
+                                  int ldb,
+                                  float beta,
+                                  float *C,
+                                  int ldc) {
+  // Converting booleans to CBLAS_TRANSPOSE (char).
+  CBLAS_TRANSPOSE cTransA = transA ? CblasTrans : CblasNoTrans;
+  CBLAS_TRANSPOSE cTransB = transB ? CblasTrans : CblasNoTrans;
+  cblas_sgemm(CblasRowMajor, cTransA, cTransB, M, K, N, alpha, A, lda, B, ldb, beta, C, ldc);
 }
 #endif  // MARIAN_USE_BLAS
+
+template <>
+inline void Gemm<Provider::kRuy>(bool transA,
+                                 bool transB,
+                                 int M,
+                                 int N,
+                                 int K,
+                                 float alpha,
+                                 float *A,
+                                 int lda,
+                                 float *B,
+                                 int ldb,
+                                 float beta,
+                                 float *C,
+                                 int ldc) {}
+
+inline void inferGemmParamsFromTensor(marian::Tensor C,
+                                      marian::Tensor A,
+                                      marian::Tensor B,
+                                      bool transA,
+                                      bool transB,
+                                      size_t &M,
+                                      size_t &K,
+                                      size_t &N,
+                                      size_t &batchSize) {
+  // Incoming matrices are row-major storage format.
+  // N1 x N2 x .. N_k x rows x cols
+  //                     -2  x - 1
+  M = A->shape()[-2];
+  K = A->shape()[-1];
+
+  if(transA) {
+    std::swap(M, K);
+  }
+
+  size_t L;
+  L = B->shape()[-2];
+  N = B->shape()[-1];
+
+  if(transB) {
+    std::swap(L, N);
+  }
+
+  // To be compliant for matrix multiplication.
+  assert(L == K);
+
+  batchSize = A->shape().size() / (M * K);
+}
 
 void gemmRuy(marian::Tensor C,
              marian::Tensor A,
@@ -79,47 +185,21 @@ void gemmRuy(marian::Tensor C,
              float beta,
              float alpha) {
   ruy::Context context;
-  size_t M, K, L, N;
 
-  // Incoming matrices are row-major storage format.
-  // N1 x N2 x .. N_k x rows x cols
-  //                     -2  x - 1
+  size_t M, K, N, batchSize;
+  inferGemmParamsFromTensor(C, A, B, transA, transB, M, K, N, batchSize);
 
   // If we need to transpose, we can swap dimensions in layout claim the matrix is just
-  // column-major.
-
-  // Configure dimensions.
-
-  if(transA) {
-    K = A->shape()[-2];
-    M = A->shape()[-1];
-
-  } else {
-    M = A->shape()[-2];
-    K = A->shape()[-1];
-  }
-
-  if(transB) {
-    N = B->shape()[-2];
-    L = B->shape()[-1];
-  } else {
-    L = B->shape()[-2];
-    N = B->shape()[-1];
-  }
-
-  // Set ordering so transpose.
+  // column-major. Set ordering so transpose.
   const auto orderA = (transA ? ruy::Order::kColMajor : ruy::Order::kRowMajor);
   const auto orderB = (transB ? ruy::Order::kColMajor : ruy::Order::kRowMajor);
-
-  size_t batchSize = A->shape().size() / (M * K);
 
   size_t strideA = M * K;
   size_t strideB = K * N;
   size_t strideC = M * N;
 
-  // ABORT_IF(L != K, "[{} x {}]x [{} x {}]; {} != {}", M, K, L, N, K, L);
-
   // Compute AB (op(A)*op(B), given we have configured transpose)
+  // Ruy allows some form of bias
   marian::Tensor AB = marian::make_tensor({batchSize, M, N});
 
   for(size_t batchId = 0; batchId < batchSize; batchId++) {
@@ -156,10 +236,9 @@ void ProdBatchedOld(marian::Tensor C,
                     bool transA,
                     bool transB,
                     float beta,
-                    float scalar) {
+                    float alpha) {
   /// The map to the notations below:
   /// m x k matrix is being multiplied with l x n
-  float alpha = scalar;
 
   size_t batchA = A->shape().size() / (A->shape()[-1] * A->shape()[-2]);
   size_t batchB = B->shape().size() / (B->shape()[-1] * B->shape()[-2]);
@@ -276,3 +355,5 @@ void ProdBatchedOld(marian::Tensor C,
 #define SGEMM_IMPL_
 #include "gemm-impl.cpp"
 #endif
+}  // namespace gemm
+}  // namespace marian

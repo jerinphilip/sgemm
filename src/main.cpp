@@ -3,6 +3,8 @@
 #include "gemm.h"
 #include "tensor.h"
 
+using namespace marian::gemm;
+
 int main(int argc, char *argv[]) {
   size_t batchSize = 1;
   size_t M = 20, K = 10, N = 30;

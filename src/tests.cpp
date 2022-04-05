@@ -1,16 +1,27 @@
 
 #include <cassert>
+#include <cstdlib>
 #include <iostream>
 #include "gtest/gtest.h"
 
 #include "gemm.h"
 #include "tensor.h"
 
+#define SGEMM_DEBUG(x)                   \
+  do {                                   \
+    if(std::getenv("SGEMM_DEBUG")) {     \
+      std::cerr << #x << x << std::endl; \
+    }                                    \
+  } while(0)
+
+using namespace marian::gemm;
+
 TEST(Tensor, creation) {
   using namespace marian;
   Tensor A = make_tensor({3, 4});
   Tensor B = make_tensor({1, 3, 4});
-  std::cout << A << std::endl;
+  SGEMM_DEBUG(A);
+  SGEMM_DEBUG(B);
   ASSERT_EQ(true, true);
 }
 
@@ -29,7 +40,7 @@ void Batched(size_t batchSize) {
                  /*transB=*/false,
                  /*beta=*/0,
                  /*scalar or alpha=*/1);
-  // std::cout << "Old\n" << C_old;
+  SGEMM_DEBUG(C_old);
 
   // With Ruy
   auto C_ruy = marian::make_tensor({batchSize, m, n});
@@ -40,7 +51,7 @@ void Batched(size_t batchSize) {
           /*transB=*/false,
           /*beta=*/0,
           /*scalar or alpha=*/1);
-  // std::cout << "Ruy:\n" << C_ruy;
+  SGEMM_DEBUG(C_ruy);
 
   using marian::is_close;
   ASSERT_EQ(is_close(C_ruy, C_old), true);
@@ -74,12 +85,12 @@ TEST(RuyVsBLAS, Combinations) {
 
       // With normal path
       ProdBatchedOld(C_blas, A, B, transA, transB, beta, alpha);
-      // std::cerr << "BLAS: " << C_blas << std::endl;
+      SGEMM_DEBUG(C_blas);
 
       // With Ruy
       auto C_ruy = marian::make_tensor({batchSize, m, n});
       gemmRuy(C_ruy, A, B, transA, transB, beta, alpha);
-      // std::cerr << "Ruy: " << C_ruy << std::endl;
+      SGEMM_DEBUG(C_ruy);
 
       bool close = marian::is_close(C_ruy, C_blas);
       ASSERT_EQ(close, true);
