@@ -78,16 +78,22 @@ void gemmRuy(marian::Tensor C,
   ruy::Context context;
   size_t M, K, L, N;
 
+  // Incoming matrices are row-major storage format.
   // N1 x N2 x .. N_k x rows x cols
   //                     -2  x - 1
+
+  // If we need to transpose, we can swap dimensions in layout claim the matrix is just
+  // column-major.
+
+  // Configure dimensions.
 
   if(transA) {
     K = A->shape()[-2];
     M = A->shape()[-1];
 
   } else {
-    M = A->shape()[-2];  // Rows-A
-    K = A->shape()[-1];  // Cols-A
+    M = A->shape()[-2];
+    K = A->shape()[-1];
   }
 
   if(transB) {
@@ -98,9 +104,9 @@ void gemmRuy(marian::Tensor C,
     N = B->shape()[-1];
   }
 
-  ABORT_IF(L != K, "[{} x {}]x [{} x {}]; {} != {}", M, K, L, N, K, L);
-
-  // This is BLAS SGEMM, all ordering coming in is column-major.
+  // Set ordering so transpose.
+  const auto orderA = (transA ? ruy::Order::kColMajor : ruy::Order::kRowMajor);
+  const auto orderB = (transB ? ruy::Order::kColMajor : ruy::Order::kRowMajor);
 
   size_t batchSize = A->shape().size() / (M * K);
 
@@ -108,14 +114,11 @@ void gemmRuy(marian::Tensor C,
   size_t strideB = K * N;
   size_t strideC = M * N;
 
-  const auto orderA = (transA ? ruy::Order::kColMajor : ruy::Order::kRowMajor);
-  const auto orderB = (transB ? ruy::Order::kColMajor : ruy::Order::kRowMajor);
+  // ABORT_IF(L != K, "[{} x {}]x [{} x {}]; {} != {}", M, K, L, N, K, L);
 
-  // TODO: Batch-size could be N-D product?
-  marian::Tensor cOriginal = marian::make_tensor({batchSize, M, N});
-  std::memcpy(cOriginal->data(), C->data(), sizeof(float) * C->shape().size());
+  // Compute AB (op(A)*op(B), given we have configured transpose)
+  marian::Tensor AB = marian::make_tensor({batchSize, M, N});
 
-  // Explicit batching. Do we have something better? Inspect ruy?
   for(size_t batchId = 0; batchId < batchSize; batchId++) {
     ruy::Matrix<float> lhs;
     ruy::MakeSimpleLayout(M, K, orderA, lhs.mutable_layout());
@@ -127,18 +130,20 @@ void gemmRuy(marian::Tensor C,
 
     ruy::Matrix<float> dst;
     ruy::MakeSimpleLayout(M, N, ruy::Order::kRowMajor, dst.mutable_layout());
-    dst.set_data(C->data() + batchId * strideC);
+    dst.set_data(AB->data() + batchId * strideC);
 
     ruy::MulParams<float, float> mul_params;
     ruy::Mul(lhs, rhs, mul_params, &context, &dst);
   }
 
-  // standard-cpp scaling implementation
-  // pls compiler autovectorize?
-  float *cData       = C->data();
-  const size_t cSize = C->shape().size();
+  // Write out C as C = alpha * [op(A) * op(B)] + beta * C
+  // Can we expect the compiler to autovectorize this?
+  // TODO: Come back and explicitly use SIMD.
+  float *cData        = C->data();
+  const size_t cSize  = C->shape().size();
+  const float *ABData = AB->data();
   for(size_t i = 0; i < cSize; i++) {
-    cData[i] = alpha * cData[i] + beta * cOriginal->data()[i];
+    cData[i] = alpha * ABData[i] + beta * cData[i];
   }
 }
 
