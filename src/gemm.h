@@ -93,35 +93,6 @@ inline void Gemm(MARIAN_GEMM_ARGS);
 template <enum Provider>
 inline void GemmBatched(MARIAN_GEMM_ARGS, int batchSize);
 
-#ifdef MARIAN_USE_EIGEN_SGEMM
-template <>
-inline void Gemm<Provider::kEigen>(MARIAN_GEMM_ARGS);
-template <>
-inline void GemmBatched<Provider::kEigen>(MARIAN_GEMM_ARGS, int batchSize);
-#endif  // MARIAN_USE_EIGEN_SGEMM
-
-#ifdef MARIAN_USE_BLAS
-template <>
-inline void Gemm<Provider::kBLAS>(MARIAN_GEMM_ARGS);
-template <>
-inline void GemmBatched<Provider::kBLAS>(MARIAN_GEMM_ARGS, int batchSize);
-#endif  // MARIAN_USE_BLAS
-
-#ifdef MARIAN_USE_RUY_SGEMM
-template <>
-inline void Gemm<Provider::kRuy>(MARIAN_GEMM_ARGS);
-
-template <>
-inline void GemmBatched<Provider::kRuy>(MARIAN_GEMM_ARGS, int batchSize);
-
-#endif  // MARIAN_USE_RUY_SGEMM
-
-#ifdef MARIAN_USE_MKL
-template <>
-inline void GemmBatched<Provider::kMKL>(MARIAN_GEMM_ARGS, int batchSize);
-#endif  // MARIAN_USE_MKL \
-
-
 void ProdBatchedOld(marian::Tensor C,
                     const marian::Tensor A,
                     const marian::Tensor B,
@@ -129,11 +100,6 @@ void ProdBatchedOld(marian::Tensor C,
                     bool transB,
                     float beta,
                     float alpha);
-
-#ifndef SGEMM_IMPL_
-#define SGEMM_IMPL_
-#include "gemm-impl.cpp"
-#endif
 
 void dispatch(std::string provider,
               marian::Tensor C,
@@ -143,6 +109,11 @@ void dispatch(std::string provider,
               bool transB,
               float beta,
               float alpha);
+
+#ifndef SGEMM_IMPL_
+#define SGEMM_IMPL_
+#include "gemm-impl.cpp"
+#endif
 
 #undef MARIAN_GEMM_ARGS
 
