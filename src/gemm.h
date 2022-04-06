@@ -1,6 +1,16 @@
 #pragma once
 
-// We try to keep as many providers as possible in the compiled library.
+// Attempt to keep as many providers as possible in the compiled library.
+// Tries to follow a flat #ifdef instead of heavy nesting in this file.
+// If a library can exist without conflicting, they're included. There are
+// definitions switch which are propogated from corresponding CMake variables.
+//
+// Templates are used to keep multiple implementations ODR compatible. Routing
+// happens once all the implementations are defined, based on precedence.
+//
+// For example, Eigen is a fallback. An x86-64 processor will have Intel MKL.
+// Both of these can co-exist. Addition deletion can be done at compile time by
+// controlling the respective CMake variable.
 
 #include <cstdlib>
 #include <iostream>
@@ -16,9 +26,9 @@
 #include <mkl.h>
 #endif  // MARIAN_USE_MKL
 
-#ifdef WASM_COMPATIBLE_BLAS
+#ifdef MARIAN_USE_ONNX_SGEMM
 #include "3rd_party/onnxjs/src/wasm-ops/gemm.h"
-#endif  // WASM_COMPATIBLE_BLAS
+#endif  // MARIAN_USE_ONNX_SGEMM
 
 #ifdef MARIAN_USE_BLAS
 #include <cblas.h>
@@ -51,9 +61,6 @@ enum class Provider {
 // op(A) is an M x K matrix, op(B) is a K x N matrix. Supply M, K, N
 // accordingly.
 //
-// We do not bother about lda, ldb, ldc, as all calls that reach here
-// come though `ProdBatched` and sub-matrices / views are not expected.
-// In this case, we can infer what LDA is from M, N, K, transA, transB.
 
 template <enum Provider>
 inline void Gemm(bool transA,
@@ -90,7 +97,7 @@ inline void GemmBatched(bool transA,
   ABORT("No available GEMM (Batched) Implementation;");
 }
 
-#ifdef WASM_COMPATIBLE_BLAS
+#ifdef MARIAN_USE_ONNX_SGEMM
 template <>
 inline void Gemm<Provider::kEigen>(bool transA,
                                    bool transB,
@@ -108,7 +115,7 @@ inline void Gemm<Provider::kEigen>(bool transA,
   // TODO: Use lda, ldb, ldc skipping ONNXJS and adding Eigen
   gemm_f32_imp(transA, transB, M, K, N, alpha, A, B, beta, C);
 }
-#endif  // WASM_COMPATIBLE_BLAS
+#endif  // MARIAN_USE_ONNX_SGEMM
 
 #ifdef MARIAN_USE_BLAS
 template <>
