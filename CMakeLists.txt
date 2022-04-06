@@ -5,17 +5,16 @@ project(bergamot_translator CXX C)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-
-set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE} -pg" CACHE STRING "Flags used by the C++ compiler during profile builds." FORCE)
-set(CMAKE_C_FLAGS_PROFILE "${CMAKE_C_FLAGS_RELEASE} -pg" CACHE STRING "Flags used by the C compiler during profile builds." FORCE)
+set(CMAKE_CXX_FLAGS_PROFILE
+    "${CMAKE_CXX_FLAGS_RELEASE} -pg"
+    CACHE STRING "Flags used by the C++ compiler during profile builds." FORCE)
+set(CMAKE_C_FLAGS_PROFILE
+    "${CMAKE_C_FLAGS_RELEASE} -pg"
+    CACHE STRING "Flags used by the C compiler during profile builds." FORCE)
 
 mark_as_advanced(
-  CMAKE_CXX_FLAGS_PROFILE
-  CMAKE_C_FLAGS_PROFILE
-  CMAKE_EXE_LINKER_FLAGS_PROFILE
-  CMAKE_SHARED_LINKER_FLAGS_PROFILE
-)
-
+  CMAKE_CXX_FLAGS_PROFILE CMAKE_C_FLAGS_PROFILE CMAKE_EXE_LINKER_FLAGS_PROFILE
+  CMAKE_SHARED_LINKER_FLAGS_PROFILE)
 
 option(MARIAN_USE_MKL "Compile with MKL support" ON)
 option(MARIAN_USE_OPENBLAS "Compile with OpenBLAS" OFF)
@@ -28,7 +27,6 @@ add_subdirectory(3rd-party)
 
 add_library(marian_sgemm STATIC src/tensor.cpp)
 target_include_directories(marian_sgemm PUBLIC ${CMAKE_SOURCE_DIR})
-
 
 if(MARIAN_USE_MKL)
   find_package(MKL REQUIRED)
@@ -49,22 +47,23 @@ if(MARIAN_USE_CBLAS)
   target_link_libraries(marian_sgemm PUBLIC CBLAS::CBLAS)
 endif(MARIAN_USE_CBLAS)
 
-
 if(MARIAN_USE_RUY_SGEMM)
-	target_link_libraries(marian_sgemm PUBLIC ruy)
+  target_link_libraries(marian_sgemm PUBLIC ruy)
   target_compile_definitions(marian_sgemm PUBLIC MARIAN_USE_RUY_SGEMM)
 endif(MARIAN_USE_RUY_SGEMM)
 
 if(MARIAN_USE_EIGEN_SGEMM)
-	target_link_libraries(marian_sgemm PUBLIC Eigen3::Eigen)
+  target_link_libraries(marian_sgemm PUBLIC Eigen3::Eigen)
   target_compile_definitions(marian_sgemm PUBLIC MARIAN_USE_EIGEN_SGEMM)
 endif(MARIAN_USE_EIGEN_SGEMM)
 
-
 find_package(Threads REQUIRED)
 
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
-set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address -static-libasan")
+set(CMAKE_CXX_FLAGS_DEBUG
+    "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+set(CMAKE_LINKER_FLAGS_DEBUG
+    "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address -static-libasan"
+)
 
 add_executable(main src/main.cpp)
 target_link_libraries(main PUBLIC marian_sgemm)
@@ -74,4 +73,3 @@ target_link_libraries(benchmark PUBLIC marian_sgemm)
 
 add_executable(tests src/tests.cpp)
 target_link_libraries(tests PUBLIC gtest_main gtest marian_sgemm)
-
