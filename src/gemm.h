@@ -653,6 +653,8 @@ void dispatch(std::string provider,
     gemmFn = &GemmBatched<Provider::kBLAS>;
   } else if(provider == "eigen") {
     gemmFn = &GemmBatched<Provider::kEigen>;
+  } else {
+    ABORT("Unknown Gemm Provider {}", provider);
   }
 
   // Make call
