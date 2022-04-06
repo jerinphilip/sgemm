@@ -9,7 +9,7 @@ option(MARIAN_USE_MKL "Compile with MKL support" ON)
 option(MARIAN_USE_OPENBLAS "Compile with OpenBLAS" OFF)
 option(MARIAN_USE_CBLAS "Compile with CBLAS" OFF)
 option(MARIAN_USE_RUY_SGEMM "Compile with ruy sgemm" ON)
-option(MARIAN_USE_ONNX_SGEMM "Compile with ONNX sgemm" OFF)
+option(MARIAN_USE_EIGEN_SGEMM "Compile with EIGEN sgemm" OFF)
 option(MARIAN_USE_APPLE_ACCELERATE "Compile with apple-accelerate support" ON)
 
 add_subdirectory(3rd-party)
@@ -42,6 +42,11 @@ if(MARIAN_USE_RUY_SGEMM)
 	target_link_libraries(marian_sgemm PUBLIC ruy)
   target_compile_definitions(marian_sgemm PUBLIC MARIAN_USE_RUY_SGEMM)
 endif(MARIAN_USE_RUY_SGEMM)
+
+if(MARIAN_USE_EIGEN_SGEMM)
+	target_link_libraries(marian_sgemm PUBLIC Eigen3::Eigen)
+  target_compile_definitions(marian_sgemm PUBLIC MARIAN_USE_EIGEN_SGEMM)
+endif(MARIAN_USE_EIGEN_SGEMM)
 
 
 find_package(Threads REQUIRED)

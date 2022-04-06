@@ -41,9 +41,10 @@
 #include <mkl.h>
 #endif  // MARIAN_USE_MKL
 
-#ifdef MARIAN_USE_ONNX_SGEMM
-#include "3rd_party/onnxjs/src/wasm-ops/gemm.h"
-#endif  // MARIAN_USE_ONNX_SGEMM
+#ifdef MARIAN_USE_EIGEN_SGEMM
+#include "Eigen/Core"
+#include "Eigen/Dense"
+#endif  // MARIAN_USE_EIGEN_SGEMM
 
 #ifdef MARIAN_USE_BLAS
 #include <cblas.h>
@@ -113,7 +114,18 @@ inline void GemmBatched(bool transA,
   ABORT("No available GEMM (Batched) Implementation;");
 }
 
-#ifdef MARIAN_USE_ONNX_SGEMM
+#ifdef MARIAN_USE_EIGEN_SGEMM
+
+// Minimum definitions required for the PyTorch import to work. Taken from:
+// https://github.com/pytorch/pytorch/blob/936e7eabcabc97fbc40f488e67a94c4733c33dd6/caffe2/utils/eigen_utils.h
+using EigenOuterStride = Eigen::OuterStride<Eigen::Dynamic>;
+template <typename T>
+using EigenOuterStridedMatrixMap
+    = Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 0, EigenOuterStride>;
+template <typename T>
+using ConstEigenOuterStridedMatrixMap
+    = Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 0, EigenOuterStride>;
+
 template <>
 inline void Gemm<Provider::kEigen>(bool transA,
                                    bool transB,
@@ -128,10 +140,65 @@ inline void Gemm<Provider::kEigen>(bool transA,
                                    float beta,
                                    float *C,
                                    int ldc) {
-  // TODO: Use lda, ldb, ldc skipping ONNXJS and adding Eigen
-  gemm_f32_imp(transA, transB, M, K, N, alpha, A, B, beta, C);
+  CBLAS_TRANSPOSE trans_A = transA ? CblasTrans : CblasNoTrans;
+  CBLAS_TRANSPOSE trans_B = transB ? CblasTrans : CblasNoTrans;
+
+  // Taken from https://github.com/pytorch/pytorch/blob/0d7aad822e77b9f5ca9649114b6c2cbdf54564e3/caffe2/utils/math_cpu.cc#L155
+  // PyTorch. BSD License.
+  EigenOuterStridedMatrixMap<float> C_mat(C, N, M, EigenOuterStride(ldc));
+  if(beta == 0) {
+    C_mat.setZero();
+  } else {
+    C_mat *= beta;
+  }
+
+  switch(trans_A) {
+    case CblasNoTrans: {
+      switch(trans_B) {
+        case CblasNoTrans:
+          C_mat.noalias()
+              += alpha
+                 * (ConstEigenOuterStridedMatrixMap<float>(B, N, K, EigenOuterStride(ldb))
+                    * ConstEigenOuterStridedMatrixMap<float>(A, K, M, EigenOuterStride(lda)));
+          return;
+        case CblasTrans:
+          C_mat.noalias()
+              += alpha
+                 * (ConstEigenOuterStridedMatrixMap<float>(B, K, N, EigenOuterStride(ldb))
+                        .transpose()
+                    * ConstEigenOuterStridedMatrixMap<float>(A, K, M, EigenOuterStride(lda)));
+          return;
+        default:
+          ABORT("Unexpected CBLAS_TRANSPOSE for trans_B");
+          return;  // The line above calls `abort()`. Should never reach here.
+      }
+    }
+    case CblasTrans: {
+      switch(trans_B) {
+        case CblasNoTrans:
+          C_mat.noalias()
+              += alpha
+                 * (ConstEigenOuterStridedMatrixMap<float>(B, N, K, EigenOuterStride(ldb))
+                    * ConstEigenOuterStridedMatrixMap<float>(A, M, K, EigenOuterStride(lda))
+                          .transpose());
+          return;
+        case CblasTrans:
+          C_mat.noalias()
+              += alpha
+                 * (ConstEigenOuterStridedMatrixMap<float>(B, K, N, EigenOuterStride(ldb))
+                        .transpose()
+                    * ConstEigenOuterStridedMatrixMap<float>(A, M, K, EigenOuterStride(lda))
+                          .transpose());
+          return;
+        default:
+          ABORT("Unexpected CBLAS_TRANSPOSE for trans_B");
+          return;  // The line above calls `abort()`. Should never reach here.
+      }
+    }
+    default: ABORT("Unexpected CBLAS_TRANSPOSE for trans_A");
+  }
 }
-#endif  // MARIAN_USE_ONNX_SGEMM
+#endif  // MARIAN_USE_EIGEN_SGEMM
 
 #ifdef MARIAN_USE_BLAS
 template <>
@@ -546,6 +613,64 @@ void ProdBatchedOld(marian::Tensor C,
 #define SGEMM_IMPL_
 #include "gemm-impl.cpp"
 #endif
+
+void dispatch(std::string provider,
+              marian::Tensor C,
+              const marian::Tensor A,
+              const marian::Tensor B,
+              bool transA,
+              bool transB,
+              float beta,
+              float alpha) {
+  size_t M, N, K, batchSize;
+  inferGemmParamsFromTensor(C, A, B, transA, transB, M, N, K, batchSize);
+
+  size_t lda = A->shape()[-1];
+  size_t ldb = B->shape()[-1];
+  size_t ldc = N;
+
+  void (*gemmFn)(bool transA,
+                 bool transB,
+                 int batchSize,
+                 int M,
+                 int N,
+                 int K,
+                 float alpha,
+                 float *A,
+                 int lda,
+                 float *B,
+                 int ldb,
+                 float beta,
+                 float *C,
+                 int ldc)
+      = nullptr;
+
+  if(provider == "ruy") {
+    gemmFn = &GemmBatched<Provider::kRuy>;
+  } else if(provider == "mkl") {
+    gemmFn = &GemmBatched<Provider::kMKL>;
+  } else if(provider == "blas") {
+    gemmFn = &GemmBatched<Provider::kBLAS>;
+  } else if(provider == "eigen") {
+    gemmFn = &GemmBatched<Provider::kEigen>;
+  }
+
+  // Make call
+  gemmFn(transA,
+         transB,
+         batchSize,
+         M,
+         N,
+         K,
+         alpha,
+         A->data(),
+         lda,
+         B->data(),
+         ldb,
+         beta,
+         C->data(),
+         ldc);
+}
 
 }  // namespace gemm
 }  // namespace marian

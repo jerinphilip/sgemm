@@ -9,5 +9,6 @@ add_subdirectory(ruy/third_party/cpuinfo EXCLUDE_FROM_ALL)
 add_subdirectory(ruy EXCLUDE_FROM_ALL)
 
 add_subdirectory(ruy/third_party/googletest EXCLUDE_FROM_ALL)
+add_subdirectory(eigen EXCLUDE_FROM_ALL)
 
 

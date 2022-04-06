@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 
@@ -43,4 +44,11 @@ std::string format(std::string const &formatTemplate, Arg arg, Args... args) {
     if((condition)) {            \
       ABORT(__VA_ARGS__);        \
     }                            \
+  } while(0)
+
+#define SGEMM_DEBUG(x)                   \
+  do {                                   \
+    if(std::getenv("SGEMM_DEBUG")) {     \
+      std::cerr << #x << x << std::endl; \
+    }                                    \
   } while(0)

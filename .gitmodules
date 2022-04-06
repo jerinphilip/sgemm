@@ -1,6 +1,6 @@
 [submodule "3rd-party/ruy"]
 	path = 3rd-party/ruy
 	url = https://github.com/google/ruy/
-[submodule "3rd-party/onnxjs"]
-	path = 3rd-party/onnxjs
-	url = https://github.com/microsoft/onnxjs.git
+[submodule "3rd-party/eigen"]
+	path = 3rd-party/eigen
+	url = https://gitlab.com/libeigen/eigen.git

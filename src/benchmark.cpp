@@ -4,65 +4,7 @@
 #include "3rd-party/CLI11.hpp"
 #include "gemm.h"
 #include "tensor.h"
-
-void dispatch(std::string provider,
-              marian::Tensor C,
-              const marian::Tensor A,
-              const marian::Tensor B,
-              bool transA,
-              bool transB,
-              float beta,
-              float alpha) {
-  using namespace marian::gemm;
-  size_t M, N, K, batchSize;
-  inferGemmParamsFromTensor(C, A, B, transA, transB, M, N, K, batchSize);
-
-  size_t lda = A->shape()[-1];
-  size_t ldb = B->shape()[-1];
-  size_t ldc = N;
-
-  void (*gemmFn)(bool transA,
-                 bool transB,
-                 int batchSize,
-                 int M,
-                 int N,
-                 int K,
-                 float alpha,
-                 float *A,
-                 int lda,
-                 float *B,
-                 int ldb,
-                 float beta,
-                 float *C,
-                 int ldc)
-      = nullptr;
-
-  if(provider == "ruy") {
-    gemmFn = &GemmBatched<Provider::kRuy>;
-  } else if(provider == "mkl") {
-    gemmFn = &GemmBatched<Provider::kMKL>;
-  } else if(provider == "blas") {
-    gemmFn = &GemmBatched<Provider::kBLAS>;
-  } else if(provider == "eigen") {
-    gemmFn = &GemmBatched<Provider::kEigen>;
-  }
-
-  // Make call
-  gemmFn(transA,
-         transB,
-         batchSize,
-         M,
-         N,
-         K,
-         alpha,
-         A->data(),
-         lda,
-         B->data(),
-         ldb,
-         beta,
-         C->data(),
-         ldc);
-}
+#include "utils.h"
 
 int main(int argc, char *argv[]) {
   size_t batchSize = 1;
@@ -115,7 +57,8 @@ int main(int argc, char *argv[]) {
         B = transB ? generate(N, K) : generate(K, N);
 
         auto C = marian::make_tensor({batchSize, M, N});
-        dispatch(provider, C, A, B, transA, transB, beta, alpha);
+        marian::gemm::dispatch(provider, C, A, B, transA, transB, beta, alpha);
+        SGEMM_DEBUG(C);
       }
     }
   }
