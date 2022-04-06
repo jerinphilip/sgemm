@@ -42,6 +42,7 @@ namespace gemm {
 // The following is about to be used further down below in templating multiple
 // implementations, allowing them to exist in an ODR compatible way.
 enum class Provider {
+  kNone,
   kEigen,  // Eigen Library; Portable fallback. Works on most platforms. Used by
            // WASM
   kMKL,    //
@@ -255,6 +256,51 @@ inline void Gemm<Provider::kRuy>(bool transA,
   }
 }
 
+// See documentation for Gemm above. Adds a batchSize parameter, which is used
+// if the available libraries provide one. Else, we resort to using an explicit
+// batching.
+#define __UNROLL(provider)                         \
+  template <>                                      \
+  inline void GemmBatched<provider>(bool transA,   \
+                                    bool transB,   \
+                                    int batchSize, \
+                                    int M,         \
+                                    int N,         \
+                                    int K,         \
+                                    float alpha,   \
+                                    float *A,      \
+                                    int lda,       \
+                                    float *B,      \
+                                    int ldb,       \
+                                    float beta,    \
+                                    float *C,      \
+                                    int ldc) {     \
+    size_t strideA = M * K;                        \
+    size_t strideB = K * N;                        \
+    size_t strideC = M * N;                        \
+                                                   \
+    for(size_t i = 0; i < batchSize; ++i) {        \
+      Gemm<provider>(transA,                       \
+                     transB,                       \
+                     (int)M,                       \
+                     (int)N,                       \
+                     (int)K,                       \
+                     alpha,                        \
+                     A + i * strideA,              \
+                     (int)lda,                     \
+                     B + i * strideB,              \
+                     (int)ldb,                     \
+                     beta,                         \
+                     C + i * strideC,              \
+                     (int)ldc);                    \
+    }                                              \
+  }
+
+__UNROLL(Provider::kBLAS);
+__UNROLL(Provider::kEigen);
+
+#undef __UNROLL
+
 template <>
 void GemmBatched<Provider::kRuy>(bool transA,
                                  bool transB,
@@ -434,46 +480,6 @@ inline void GemmBatched<Provider::kMKL>(bool transA,
 }
 #endif  // MARIAN_USE_MKL
 
-// See documentation for Gemm above. Adds a batchSize parameter, which is used
-// if the available libraries provide one. Else, we resort to using an explicit
-// batching.
-inline void GemmBatchedExplicit(bool transA,
-                                bool transB,
-                                int batchSize,
-                                int M,
-                                int N,
-                                int K,
-                                float alpha,
-                                float *A,
-                                int lda,
-                                float *B,
-                                int ldb,
-                                float beta,
-                                float *C,
-                                int ldc) {
-  size_t strideA = M * K;
-  size_t strideB = K * N;
-  size_t strideC = M * N;
-
-  constexpr Provider kHighest = Provider::kBLAS;
-
-  for(size_t i = 0; i < batchSize; ++i) {
-    Gemm<kHighest>(transA,
-                   transB,
-                   (int)M,
-                   (int)N,
-                   (int)K,
-                   alpha,
-                   A + i * strideA,
-                   (int)lda,
-                   B + i * strideB,
-                   (int)ldb,
-                   beta,
-                   C + i * strideC,
-                   (int)ldc);
-  }
-}
-
 void ProdBatchedOld(marian::Tensor C,
                     const marian::Tensor A,
                     const marian::Tensor B,
@@ -504,20 +510,20 @@ void ProdBatchedOld(marian::Tensor C,
                               C->data(),
                               ldc);
 #else   // MARIAN_USE_MKL
-  GemmBatchedExplicit(transA,
-                      transB,
-                      batchSize,
-                      M,
-                      N,
-                      K,
-                      alpha,
-                      A->data(),
-                      lda,
-                      B->data(),
-                      ldb,
-                      beta,
-                      C->data(),
-                      ldc);
+  GemmBatched<Provider::kBLAS>(transA,
+                               transB,
+                               batchSize,
+                               M,
+                               N,
+                               K,
+                               alpha,
+                               A->data(),
+                               lda,
+                               B->data(),
+                               ldb,
+                               beta,
+                               C->data(),
+                               ldc);
 #endif  // MARIAN_USE_MKL
 }
 

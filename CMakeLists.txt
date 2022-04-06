@@ -52,6 +52,9 @@ set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointe
 add_executable(main src/main.cpp)
 target_link_libraries(main PUBLIC marian_sgemm)
 
+add_executable(benchmark src/benchmark.cpp)
+target_link_libraries(benchmark PUBLIC marian_sgemm)
+
 add_executable(tests src/tests.cpp)
 target_link_libraries(tests PUBLIC gtest_main gtest marian_sgemm)
 
