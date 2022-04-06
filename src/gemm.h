@@ -489,76 +489,52 @@ inline void GemmBatched<Provider::kMKL>(bool transA,
                                         float beta,
                                         float *C,
                                         int ldc) {
-  /// The map to the notations below:
-  /// m x k matrix is being multiplied with l x n
-
-  CBLAS_TRANSPOSE transA_forarr = CblasNoTrans;
-  CBLAS_TRANSPOSE transB_forarr = CblasNoTrans;
-
-  if(transA)
-    transA_forarr = CblasTrans;
-
-  if(transB)
-    transB_forarr = CblasTrans;
+  CBLAS_TRANSPOSE trans_A = transA ? CblasTrans : CblasNoTrans;
+  CBLAS_TRANSPOSE trans_B = transB ? CblasTrans : CblasNoTrans;
 
   /* cblas_sgemm_batch allows us to group all the small GEMMs that are done in a
-   * for loop with sgemm and compute them in only one MKL call. For the API
-   * documentation refer to
-   * https://software.intel.com/content/www/us/en/develop/documentation/mkl-developer-reference-c/top/blas-and-sparse-blas-routines/blas-like-extensions/cblas-gemm-batch.html
+   * for loop with sgemm and compute them in only one MKL call. 
    * The API supports dependencies, where you can specify one "group" of GEMMs
    * to be computed after another. (This controlled by the group_count
    * parameter). In our case, the operations are not dependent on one another so
    * we hardcode one group. The rest of the arguments (with the exception of
    * group_size) are the same as the ones that cblas_sgemm expects, with the
    * difference that we are supposed to provide an array pointer (One element
-   * per group). Weirdly enough, we are required to to provide all of the
-   * integer arguments as the MKL_INT datatype
+   * per group).
    */
 
-  static const constexpr size_t group_count = 1;  // We have one group
-  const std::vector<CBLAS_TRANSPOSE> transa_arr(group_count, transA_forarr);
-  const std::vector<CBLAS_TRANSPOSE> transb_arr(group_count, transB_forarr);
-  const std::vector<MKL_INT> m_arr(group_count, (MKL_INT)M);
-  const std::vector<MKL_INT> n_arr(group_count, (MKL_INT)N);
-  const std::vector<MKL_INT> k_arr(group_count, (MKL_INT)K);
-  const std::vector<float> alpha_arr(group_count, alpha);
-  const std::vector<float> beta_arr(group_count, beta);
-  const std::vector<MKL_INT> lda_arr(group_count, (MKL_INT)lda);
-  const std::vector<MKL_INT> ldb_arr(group_count, (MKL_INT)ldb);
-  const std::vector<MKL_INT> ldc_arr(group_count, (MKL_INT)ldc);
-  // Group size specifies number of GEMM operations per group (Which is batchSize)
-  const std::vector<MKL_INT> group_size(group_count, (MKL_INT)batchSize);
+  const MKL_INT mM(M), mN(N), mK(K);
+  const MKL_INT mlda(lda), mldb(ldb), mldc(ldc);
+  const MKL_INT strideB(mN * mK), strideA(mM * mK), strideC(mN * mM);
+  const MKL_INT mBatchSize(batchSize);
 
-  std::vector<const float *> a_array(batchSize, nullptr);
-  std::vector<const float *> b_array(batchSize, nullptr);
-  std::vector<float *> c_array(batchSize, nullptr);
+  std::vector<const float *> A_array(batchSize, nullptr);
+  std::vector<const float *> B_array(batchSize, nullptr);
 
-  auto strideB = N * K;
-  auto strideA = M * K;
-  auto strideC = N * M;
+  std::vector<float *> C_array(batchSize, nullptr);
 
-  for(size_t i = 0; i < batchSize; ++i) {
-    a_array[i] = A + i * strideA;
-    b_array[i] = B + i * strideB;
-    c_array[i] = C + i * strideC;
+  for(int i = 0; i < batchSize; ++i) {
+    A_array[i] = A + i * strideA;
+    B_array[i] = B + i * strideB;
+    C_array[i] = C + i * strideC;
   }
 
   cblas_sgemm_batch(CblasRowMajor,
-                    &transa_arr[0],
-                    &transb_arr[0],
-                    &m_arr[0],
-                    &n_arr[0],
-                    &k_arr[0],
-                    &alpha_arr[0],
-                    &a_array[0],
-                    &lda_arr[0],
-                    &b_array[0],
-                    &ldb_arr[0],
-                    &beta_arr[0],
-                    &c_array[0],
-                    &ldc_arr[0],
-                    group_count,
-                    &group_size[0]);
+                    &trans_A,
+                    &trans_B,
+                    &mM,
+                    &mN,
+                    &mK,
+                    &alpha,
+                    A_array.data(),
+                    &mlda,
+                    B_array.data(),
+                    &mldb,
+                    &beta,
+                    C_array.data(),
+                    &mldc,
+                    /*group_count=*/1,
+                    &mBatchSize);
 }
 #endif  // MARIAN_USE_MKL
 
