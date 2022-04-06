@@ -67,49 +67,44 @@ int main(int argc, char *argv[]) {
   size_t batchSize = 1;
   size_t M = 2000, K = 1000, N = 3000;
 
-  char transA = 'N';
-  char transB = 'N';
-
-  float alpha = 1.0;
-  float beta  = 0.0;
+  float alpha       = 3.0;
+  float beta        = 1.0;
+  size_t iterations = 100;
 
   std::string provider("ruy");
 
   CLI::App app{"App description"};
 
   // clang-format off
-  app.add_option("--batchSize" , batchSize , "Batches to pack together");
-  app.add_option("--rowsA"     , M         , "Rows of A");
-  app.add_option("--colsA"     , K         , "Cols of A = rows B");
-  app.add_option("--colsB"     , N         , "Cols of B");
-  app.add_option("--alpha"     , alpha     , "alpha value");
-  app.add_option("--beta"      , beta      , "beta value");
-  app.add_option("--transA"    , transA    , "Transpose A?");
-  app.add_option("--transB"    , transB    , "Transpose B?");
-  app.add_option("--provider"  , provider  , "SGGEMM provider");
+  app.add_option("--batchSize"  , batchSize  , "Batches to pack together");
+  app.add_option("--rowsA"      , M          , "Rows of A");
+  app.add_option("--colsA"      , K          , "Cols of A = rows B");
+  app.add_option("--colsB"      , N          , "Cols of B");
+  app.add_option("--provider"   , provider   , "SGGEMM provider");
+  app.add_option("--iterations" , iterations , "Number of iterations");
   // clang-format on
 
   CLI11_PARSE(app, argc, argv);
 
   marian::Tensor A, B;
+  for(size_t i = 0; i < iterations; i++) {
+    std::vector<bool> transU = {true, false};
+    for(const bool transA : transU) {
+      for(const bool transB : transU) {
+        marian::Tensor A, B;
 
-  switch(transA) {
-    case 'T': A = marian::make_tensor({batchSize, K, M}); break;
-    case 'N': A = marian::make_tensor({batchSize, M, K}); break;
-    default: ABORT("Unknown transA argument {}.", transA); break;
+        auto generate = [batchSize](size_t rows, size_t cols) {
+          return marian::make_tensor({batchSize, rows, cols});
+        };
+
+        A = transA ? generate(K, M) : generate(M, K);
+        B = transB ? generate(N, K) : generate(K, N);
+
+        auto C = marian::make_tensor({batchSize, M, N});
+        dispatch(provider, C, A, B, transA, transB, beta, alpha);
+      }
+    }
   }
-
-  switch(transB) {
-    case 'T': B = marian::make_tensor({batchSize, N, K}); break;
-    case 'N': B = marian::make_tensor({batchSize, K, N}); break;
-    default: ABORT("Unknown transB argument {}.", transA); break;
-  }
-
-  auto C = marian::make_tensor({batchSize, M, N});
-
-  dispatch(provider, C, A, B, (transA == 'T'), (transB == 'T'), beta, alpha);
-
-  // std::cout << C << std::endl;
 
   return 0;
 }
