@@ -65,7 +65,7 @@ void dispatch(std::string provider,
 
 int main(int argc, char *argv[]) {
   size_t batchSize = 1;
-  size_t M = 20, K = 10, N = 30;
+  size_t M = 2000, K = 1000, N = 3000;
 
   char transA = 'N';
   char transB = 'N';
@@ -109,7 +109,7 @@ int main(int argc, char *argv[]) {
 
   dispatch(provider, C, A, B, (transA == 'T'), (transB == 'T'), beta, alpha);
 
-  std::cout << C << std::endl;
+  // std::cout << C << std::endl;
 
   return 0;
 }

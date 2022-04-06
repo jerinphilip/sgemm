@@ -11,6 +11,21 @@
 // For example, Eigen is a fallback. An x86-64 processor will have Intel MKL.
 // Both of these can co-exist. Addition deletion can be done at compile time by
 // controlling the respective CMake variable.
+//
+// 0. The simplest implementation is an ABORT, as it existed before.
+// 1. We incrementally add implementations the standard GEMM API using
+//    different providers.
+// 2. Given a functional GEMM, BatchedGEMM can be realized by explicitly looping.
+// 3. Some providers allow faster variants of BatchedGEMM by reducing
+//    allocations/grouping. In this case, we explicitly specialize the templates
+//    to the faster implementation.
+//
+// Client calls a GemmBatched, through a translation layer from marian::Tensor
+// to GEMM API arguments.
+//
+// Units are added or removed as a whole, without interspersing ifdefs in an
+// attempt to DRY. This leads to an increased verbosity, much the units are
+// much more pliable.
 
 #include <cstdlib>
 #include <iostream>
