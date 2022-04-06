@@ -105,12 +105,18 @@ inline void inferGemmParamsFromTensor(marian::Tensor C,
                                       size_t &M,
                                       size_t &N,
                                       size_t &K,
+                                      size_t &lda,
+                                      size_t &ldb,
+                                      size_t &ldc,
                                       size_t &batchSize) {
   // Incoming matrices are row-major storage format.
   // N1 x N2 x .. N_k x rows x cols
   //                     -2  x - 1
   M = A->shape()[-2];
   K = A->shape()[-1];
+
+  lda = A->shape()[-1];
+  ldb = B->shape()[-1];
 
   if(transA) {
     std::swap(M, K);
@@ -134,6 +140,8 @@ inline void inferGemmParamsFromTensor(marian::Tensor C,
   assert(computeBatchSize(A, M, K) == computeBatchSize(C, M, N));
 
   batchSize = A->shape().size() / (M * K);
+
+  ldc = N;
 }
 
 #ifdef MARIAN_USE_RUY_SGEMM
@@ -244,36 +252,6 @@ void GemmBatched<Provider::kRuy>(MARIAN_GEMM_ARGS, int batchSize) {
   }
 }
 
-void gemmRuy(marian::Tensor C,
-             marian::Tensor A,
-             marian::Tensor B,
-             bool transA,
-             bool transB,
-             float beta,
-             float alpha) {
-  size_t M, K, N, batchSize;
-  inferGemmParamsFromTensor(C, A, B, transA, transB, M, N, K, batchSize);
-
-  size_t lda = A->shape()[-1];
-  size_t ldb = A->shape()[-1];
-  size_t ldc = N;
-
-  GemmBatched<Provider::kRuy>(transA,
-                              transB,
-                              M,
-                              N,
-                              K,
-                              alpha,
-                              A->data(),
-                              lda,
-                              B->data(),
-                              ldb,
-                              beta,
-                              C->data(),
-                              ldc,
-                              batchSize);
-}
-
 #endif
 
 #ifdef MARIAN_USE_MKL
@@ -373,12 +351,8 @@ void ProdBatchedOld(marian::Tensor C,
                     bool transB,
                     float beta,
                     float alpha) {
-  size_t M, K, N, batchSize;
-  inferGemmParamsFromTensor(C, A, B, transA, transB, M, N, K, batchSize);
-
-  size_t lda = A->shape()[-1];
-  size_t ldb = B->shape()[-1];
-  size_t ldc = N;
+  size_t M, K, N, lda, ldb, ldc, batchSize;
+  inferGemmParamsFromTensor(C, A, B, transA, transB, M, N, K, lda, ldb, ldc, batchSize);
 
 #ifdef MARIAN_USE_MKL
   GemmBatched<Provider::kMKL>(transA,
@@ -426,12 +400,8 @@ void dispatch(std::string provider,
               bool transB,
               float beta,
               float alpha) {
-  size_t M, N, K, batchSize;
-  inferGemmParamsFromTensor(C, A, B, transA, transB, M, N, K, batchSize);
-
-  size_t lda = A->shape()[-1];
-  size_t ldb = B->shape()[-1];
-  size_t ldc = N;
+  size_t M, N, K, batchSize, lda, ldb, ldc;
+  inferGemmParamsFromTensor(C, A, B, transA, transB, M, N, K, lda, ldb, ldc, batchSize);
 
   void (*gemmFn)(MARIAN_GEMM_ARGS, int batchSize) = nullptr;
 

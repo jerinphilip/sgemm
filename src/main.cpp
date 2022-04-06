@@ -15,6 +15,8 @@ int main(int argc, char *argv[]) {
   float alpha = 1.0;
   float beta  = 0.0;
 
+  std::string provider = "ruy";
+
   CLI::App app{"App description"};
 
   // clang-format off
@@ -26,6 +28,7 @@ int main(int argc, char *argv[]) {
   app.add_option("--beta"      , beta      , "beta value");
   app.add_option("--transA"    , transA    , "Transpose A?");
   app.add_option("--transB"    , transB    , "Transpose B?");
+  app.add_option("--provider"  , provider  , "Backend to use. ruy | eigen | mkl | blas");
   // clang-format on
 
   CLI11_PARSE(app, argc, argv);
@@ -44,20 +47,9 @@ int main(int argc, char *argv[]) {
     default: ABORT("Unknown transB argument {}.", transA); break;
   }
 
-  auto C_old = marian::make_tensor({batchSize, M, N});
-
-  // With normal path
-  ProdBatchedOld(C_old, A, B, (transA == 'T'), (transB == 'T'), beta, alpha);
-  std::cerr << "Old\n" << C_old;
-
-  // With Ruy
-  auto C_ruy = marian::make_tensor({batchSize, M, N});
-  gemmRuy(C_ruy, A, B, (transA == 'T'), (transB == 'T'), beta, alpha);
-  std::cerr << "Ruy:\n" << C_ruy;
-
-  std::cerr << "\n";
-  std::cout << (marian::is_close(C_ruy, C_old) ? "[SUCCESS] Ruy = Old" : "[FAIL] Ruy != Old")
-            << "\n";
+  C = marian::make_tensor({batchSize, M, N});
+  dispatch(provider, C, A, B, (transA == 'T'), (transB == 'T'), alpha, beta);
+  std::cout << C << std::endl;
 
   return 0;
 }
