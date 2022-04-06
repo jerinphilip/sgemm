@@ -81,7 +81,7 @@ TEST(RuyVsBLAS, Batched) {
       SGEMM_DEBUG(C1);                                            \
                                                                   \
       auto C2 = marian::make_tensor({batchSize, m, n});           \
-      gemmRuy(C2, A, B, transA, transB, beta, alpha);             \
+      dispatch(Provider2, C2, A, B, transA, transB, beta, alpha); \
       SGEMM_DEBUG(C2);                                            \
                                                                   \
       bool close = marian::is_close(C1, C2);                      \
