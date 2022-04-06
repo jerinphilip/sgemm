@@ -576,7 +576,7 @@ void ProdBatchedOld(marian::Tensor C,
   size_t ldb = B->shape()[-1];
   size_t ldc = N;
 
-#if MARIAN_USE_MKL
+#ifdef MARIAN_USE_MKL
   GemmBatched<Provider::kMKL>(transA,
                               transB,
                               batchSize,
