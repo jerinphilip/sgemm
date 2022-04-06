@@ -79,38 +79,18 @@ enum class Provider {
 // accordingly.
 //
 
+#define MARIAN_GEMM_ARGS                                                                          \
+  const bool transA, const bool transB, const int M, const int N, const int K, const float alpha, \
+      const float *A, const int lda, const float *B, const int ldb, const float beta, float *C,   \
+      const int ldc
+
 template <enum Provider>
-inline void Gemm(bool transA,
-                 bool transB,
-                 int M,
-                 int N,
-                 int K,
-                 float alpha,
-                 float *A,
-                 int lda,
-                 float *B,
-                 int ldb,
-                 float beta,
-                 float *C,
-                 int ldc) {
+inline void Gemm(MARIAN_GEMM_ARGS) {
   ABORT("No available GEMM Implementation;");
 }
 
 template <enum Provider>
-inline void GemmBatched(bool transA,
-                        bool transB,
-                        int batchSize,
-                        int M,
-                        int N,
-                        int K,
-                        float alpha,
-                        float *A,
-                        int lda,
-                        float *B,
-                        int ldb,
-                        float beta,
-                        float *C,
-                        int ldc) {
+inline void GemmBatched(MARIAN_GEMM_ARGS, int batchSize) {
   ABORT("No available GEMM (Batched) Implementation;");
 }
 
@@ -127,19 +107,7 @@ using ConstEigenOuterStridedMatrixMap
     = Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 0, EigenOuterStride>;
 
 template <>
-inline void Gemm<Provider::kEigen>(bool transA,
-                                   bool transB,
-                                   int M,
-                                   int N,
-                                   int K,
-                                   float alpha,
-                                   float *A,
-                                   int lda,
-                                   float *B,
-                                   int ldb,
-                                   float beta,
-                                   float *C,
-                                   int ldc) {
+inline void Gemm<Provider::kEigen>(MARIAN_GEMM_ARGS) {
   CBLAS_TRANSPOSE trans_A = transA ? CblasTrans : CblasNoTrans;
   CBLAS_TRANSPOSE trans_B = transB ? CblasTrans : CblasNoTrans;
 
@@ -202,19 +170,7 @@ inline void Gemm<Provider::kEigen>(bool transA,
 
 #ifdef MARIAN_USE_BLAS
 template <>
-inline void Gemm<Provider::kBLAS>(bool transA,
-                                  bool transB,
-                                  int M,
-                                  int N,
-                                  int K,
-                                  float alpha,
-                                  float *A,
-                                  int lda,
-                                  float *B,
-                                  int ldb,
-                                  float beta,
-                                  float *C,
-                                  int ldc) {
+inline void Gemm<Provider::kBLAS>(MARIAN_GEMM_ARGS) {
   // Converting booleans to CBLAS_TRANSPOSE (char).
   CBLAS_TRANSPOSE cTransA = transA ? CblasTrans : CblasNoTrans;
   CBLAS_TRANSPOSE cTransB = transB ? CblasTrans : CblasNoTrans;
@@ -291,19 +247,7 @@ private:
 }  // namespace
 
 template <>
-inline void Gemm<Provider::kRuy>(bool transA,
-                                 bool transB,
-                                 int M,
-                                 int N,
-                                 int K,
-                                 float alpha,
-                                 float *A,
-                                 int lda,
-                                 float *B,
-                                 int ldb,
-                                 float beta,
-                                 float *C,
-                                 int ldc) {
+inline void Gemm<Provider::kRuy>(MARIAN_GEMM_ARGS) {
   ruy::Context context;
 
   // If we need to transpose, we can swap dimensions in layout claim the matrix
@@ -341,41 +285,28 @@ inline void Gemm<Provider::kRuy>(bool transA,
 // See documentation for Gemm above. Adds a batchSize parameter, which is used
 // if the available libraries provide one. Else, we resort to using an explicit
 // batching.
-#define __UNROLL(provider)                         \
-  template <>                                      \
-  inline void GemmBatched<provider>(bool transA,   \
-                                    bool transB,   \
-                                    int batchSize, \
-                                    int M,         \
-                                    int N,         \
-                                    int K,         \
-                                    float alpha,   \
-                                    float *A,      \
-                                    int lda,       \
-                                    float *B,      \
-                                    int ldb,       \
-                                    float beta,    \
-                                    float *C,      \
-                                    int ldc) {     \
-    size_t strideA = M * K;                        \
-    size_t strideB = K * N;                        \
-    size_t strideC = M * N;                        \
-                                                   \
-    for(size_t i = 0; i < batchSize; ++i) {        \
-      Gemm<provider>(transA,                       \
-                     transB,                       \
-                     (int)M,                       \
-                     (int)N,                       \
-                     (int)K,                       \
-                     alpha,                        \
-                     A + i * strideA,              \
-                     (int)lda,                     \
-                     B + i * strideB,              \
-                     (int)ldb,                     \
-                     beta,                         \
-                     C + i * strideC,              \
-                     (int)ldc);                    \
-    }                                              \
+#define __UNROLL(provider)                                             \
+  template <>                                                          \
+  inline void GemmBatched<provider>(MARIAN_GEMM_ARGS, int batchSize) { \
+    size_t strideA = M * K;                                            \
+    size_t strideB = K * N;                                            \
+    size_t strideC = M * N;                                            \
+                                                                       \
+    for(size_t i = 0; i < batchSize; ++i) {                            \
+      Gemm<provider>(transA,                                           \
+                     transB,                                           \
+                     (int)M,                                           \
+                     (int)N,                                           \
+                     (int)K,                                           \
+                     alpha,                                            \
+                     A + i * strideA,                                  \
+                     (int)lda,                                         \
+                     B + i * strideB,                                  \
+                     (int)ldb,                                         \
+                     beta,                                             \
+                     C + i * strideC,                                  \
+                     (int)ldc);                                        \
+    }                                                                  \
   }
 
 __UNROLL(Provider::kBLAS);
@@ -384,20 +315,7 @@ __UNROLL(Provider::kEigen);
 #undef __UNROLL
 
 template <>
-void GemmBatched<Provider::kRuy>(bool transA,
-                                 bool transB,
-                                 int batchSize,
-                                 int M,
-                                 int N,
-                                 int K,
-                                 float alpha,
-                                 float *A,
-                                 int lda,
-                                 float *B,
-                                 int ldb,
-                                 float beta,
-                                 float *C,
-                                 int ldc) {
+void GemmBatched<Provider::kRuy>(MARIAN_GEMM_ARGS, int batchSize) {
   ruy::Context context;
 
   // If we need to transpose, we can swap dimensions in layout claim the matrix
@@ -456,7 +374,6 @@ void gemmRuy(marian::Tensor C,
 
   GemmBatched<Provider::kRuy>(transA,
                               transB,
-                              batchSize,
                               M,
                               N,
                               K,
@@ -467,7 +384,8 @@ void gemmRuy(marian::Tensor C,
                               ldb,
                               beta,
                               C->data(),
-                              ldc);
+                              ldc,
+                              batchSize);
 }
 
 #endif
@@ -475,20 +393,7 @@ void gemmRuy(marian::Tensor C,
 #ifdef MARIAN_USE_MKL
 
 template <>
-inline void GemmBatched<Provider::kMKL>(bool transA,
-                                        bool transB,
-                                        int batchSize,
-                                        int M,
-                                        int N,
-                                        int K,
-                                        float alpha,
-                                        float *A,
-                                        int lda,
-                                        float *B,
-                                        int ldb,
-                                        float beta,
-                                        float *C,
-                                        int ldc) {
+inline void GemmBatched<Provider::kMKL>(MARIAN_GEMM_ARGS, int batchSize) {
   CBLAS_TRANSPOSE trans_A = transA ? CblasTrans : CblasNoTrans;
   CBLAS_TRANSPOSE trans_B = transB ? CblasTrans : CblasNoTrans;
 
@@ -555,7 +460,6 @@ void ProdBatchedOld(marian::Tensor C,
 #ifdef MARIAN_USE_MKL
   GemmBatched<Provider::kMKL>(transA,
                               transB,
-                              batchSize,
                               M,
                               N,
                               K,
@@ -566,11 +470,11 @@ void ProdBatchedOld(marian::Tensor C,
                               ldb,
                               beta,
                               C->data(),
-                              ldc);
+                              ldc,
+                              batchSize);
 #else   // MARIAN_USE_MKL
   GemmBatched<Provider::kBLAS>(transA,
                                transB,
-                               batchSize,
                                M,
                                N,
                                K,
@@ -581,7 +485,8 @@ void ProdBatchedOld(marian::Tensor C,
                                ldb,
                                beta,
                                C->data(),
-                               ldc);
+                               ldc,
+                               batchSize);
 #endif  // MARIAN_USE_MKL
 }
 
@@ -605,21 +510,7 @@ void dispatch(std::string provider,
   size_t ldb = B->shape()[-1];
   size_t ldc = N;
 
-  void (*gemmFn)(bool transA,
-                 bool transB,
-                 int batchSize,
-                 int M,
-                 int N,
-                 int K,
-                 float alpha,
-                 float *A,
-                 int lda,
-                 float *B,
-                 int ldb,
-                 float beta,
-                 float *C,
-                 int ldc)
-      = nullptr;
+  void (*gemmFn)(MARIAN_GEMM_ARGS, int batchSize) = nullptr;
 
   if(provider == "ruy") {
     gemmFn = &GemmBatched<Provider::kRuy>;
@@ -636,7 +527,6 @@ void dispatch(std::string provider,
   // Make call
   gemmFn(transA,
          transB,
-         batchSize,
          M,
          N,
          K,
@@ -647,8 +537,11 @@ void dispatch(std::string provider,
          ldb,
          beta,
          C->data(),
-         ldc);
+         ldc,
+         batchSize);
 }
+
+#undef MARIAN_GEMM_ARGS
 
 }  // namespace gemm
 }  // namespace marian
