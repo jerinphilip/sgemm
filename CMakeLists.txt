@@ -5,6 +5,18 @@ project(bergamot_translator CXX C)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+
+set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE} -pg" CACHE STRING "Flags used by the C++ compiler during profile builds." FORCE)
+set(CMAKE_C_FLAGS_PROFILE "${CMAKE_C_FLAGS_RELEASE} -pg" CACHE STRING "Flags used by the C compiler during profile builds." FORCE)
+
+mark_as_advanced(
+  CMAKE_CXX_FLAGS_PROFILE
+  CMAKE_C_FLAGS_PROFILE
+  CMAKE_EXE_LINKER_FLAGS_PROFILE
+  CMAKE_SHARED_LINKER_FLAGS_PROFILE
+)
+
+
 option(MARIAN_USE_MKL "Compile with MKL support" ON)
 option(MARIAN_USE_OPENBLAS "Compile with OpenBLAS" OFF)
 option(MARIAN_USE_CBLAS "Compile with CBLAS" OFF)
