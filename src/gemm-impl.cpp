@@ -352,11 +352,6 @@ void ProdBatchedOld(marian::Tensor C,
                                batchSize);
 }
 
-#ifndef SGEMM_IMPL_
-#define SGEMM_IMPL_
-#include "gemm-impl.cpp"
-#endif
-
 void dispatch(std::string provider,
               marian::Tensor C,
               const marian::Tensor A,
