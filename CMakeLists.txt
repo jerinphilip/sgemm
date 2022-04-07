@@ -5,6 +5,7 @@ project(bergamot_translator CXX C)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Build Type: Profile
 set(CMAKE_CXX_FLAGS_PROFILE
     "${CMAKE_CXX_FLAGS_RELEASE} -pg"
     CACHE STRING "Flags used by the C++ compiler during profile builds." FORCE)
@@ -12,9 +13,18 @@ set(CMAKE_C_FLAGS_PROFILE
     "${CMAKE_C_FLAGS_RELEASE} -pg"
     CACHE STRING "Flags used by the C compiler during profile builds." FORCE)
 
+# Build Type: ASAN
+set(CMAKE_CXX_FLAGS_ASAN
+    "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+set(CMAKE_C_FLAGS_ASAN
+    "${CMAKE_C_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
+set(CMAKE_LINKER_FLAGS_ASAN
+    "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address -static-libasan"
+)
+
 mark_as_advanced(
-  CMAKE_CXX_FLAGS_PROFILE CMAKE_C_FLAGS_PROFILE CMAKE_EXE_LINKER_FLAGS_PROFILE
-  CMAKE_SHARED_LINKER_FLAGS_PROFILE)
+  CMAKE_CXX_FLAGS_PROFILE CMAKE_C_FLAGS_PROFILE CMAKE_C_FLAGS_ASAN
+  CMAKE_CXX_FLAGS_ASAN CMAKE_LINKER_FLAGS_ASAN)
 
 option(MARIAN_USE_MKL "Compile with MKL support" ON)
 option(MARIAN_USE_OPENBLAS "Compile with OpenBLAS" OFF)
@@ -58,12 +68,6 @@ if(MARIAN_USE_EIGEN_SGEMM)
 endif(MARIAN_USE_EIGEN_SGEMM)
 
 find_package(Threads REQUIRED)
-
-set(CMAKE_CXX_FLAGS_DEBUG
-    "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
-set(CMAKE_LINKER_FLAGS_DEBUG
-    "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address -static-libasan"
-)
 
 add_executable(main src/main.cpp)
 target_link_libraries(main PUBLIC marian_sgemm)
