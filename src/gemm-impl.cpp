@@ -17,7 +17,7 @@ inline void GemmBatched(MARIAN_GEMM_ARGS, int batchSize) {
 
 // EIGEN Specializations
 
-#ifdef MARIAN_USE_EIGEN_SGEMM
+#ifdef MARIAN_WITH_EIGEN_SGEMM
 
 // Minimum definitions required for the PyTorch import to work. Taken from:
 // https://github.com/pytorch/pytorch/blob/936e7eabcabc97fbc40f488e67a94c4733c33dd6/caffe2/utils/eigen_utils.h
@@ -67,9 +67,9 @@ inline void Gemm<Provider::kEigen>(MARIAN_GEMM_ARGS) {
     }
   }
 }
-#endif  // MARIAN_USE_EIGEN_SGEMM
+#endif  // MARIAN_WITH_EIGEN_SGEMM
 
-#ifdef MARIAN_USE_BLAS
+#ifdef MARIAN_WITH_BLAS
 template <>
 inline void Gemm<Provider::kBLAS>(MARIAN_GEMM_ARGS) {
   // Converting booleans to CBLAS_TRANSPOSE (char).
@@ -77,7 +77,7 @@ inline void Gemm<Provider::kBLAS>(MARIAN_GEMM_ARGS) {
   CBLAS_TRANSPOSE cTransB = transB ? CblasTrans : CblasNoTrans;
   cblas_sgemm(CblasRowMajor, cTransA, cTransB, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
 }
-#endif  // MARIAN_USE_BLAS
+#endif  // MARIAN_WITH_BLAS
 
 // Translates marian::Tensor to GEMM API args.
 inline void inferGemmParamsFromTensor(marian::Tensor C,
@@ -127,7 +127,7 @@ inline void inferGemmParamsFromTensor(marian::Tensor C,
   ldc = N;
 }
 
-#ifdef MARIAN_USE_RUY_SGEMM
+#ifdef MARIAN_WITH_RUY_SGEMM
 namespace {
 
 template <class T>
@@ -186,6 +186,7 @@ inline void Gemm<Provider::kRuy>(MARIAN_GEMM_ARGS) {
   // TODO: Come back and explicitly use SIMD.
   const size_t size    = M * N;
   const float *opA_opB = intermediate.data();
+#pragma clang loop vectorize(enable) interleave(enable)
   for(size_t i = 0; i < size; i++) {
     C[i] = alpha * opA_opB[i] + beta * C[i];
   }
@@ -230,6 +231,7 @@ void GemmBatched<Provider::kRuy>(MARIAN_GEMM_ARGS, int batchSize) {
   // TODO: Come back and explicitly use SIMD.
   const size_t cSize   = batchSize * M * N;
   const float *opA_opB = intermediate.data();
+#pragma clang loop vectorize(enable) interleave(enable)
   for(size_t i = 0; i < cSize; i++) {
     C[i] = alpha * opA_opB[i] + beta * C[i];
   }
@@ -237,7 +239,7 @@ void GemmBatched<Provider::kRuy>(MARIAN_GEMM_ARGS, int batchSize) {
 
 #endif
 
-#ifdef MARIAN_USE_MKL
+#ifdef MARIAN_WITH_MKL
 
 template <>
 inline void GemmBatched<Provider::kMKL>(MARIAN_GEMM_ARGS, int batchSize) {
@@ -288,7 +290,7 @@ inline void GemmBatched<Provider::kMKL>(MARIAN_GEMM_ARGS, int batchSize) {
                     /*group_count=*/1,
                     &mBatchSize);
 }
-#endif  // MARIAN_USE_MKL \
+#endif  // MARIAN_WITH_MKL \
 
 // See documentation for Gemm above. Adds a batchSize parameter, which is used
 // if the available libraries provide one. Else, we resort to using an explicit
@@ -317,13 +319,13 @@ inline void GemmBatched<Provider::kMKL>(MARIAN_GEMM_ARGS, int batchSize) {
     }                                                                  \
   }
 
-#ifdef MARIAN_USE_BLAS
+#ifdef MARIAN_WITH_BLAS
 __UNROLL(Provider::kBLAS);
-#endif  // MARIAN_USE_BLAS
+#endif  // MARIAN_WITH_BLAS
 
-#ifdef MARIAN_USE_EIGEN_SGEMM
+#ifdef MARIAN_WITH_EIGEN_SGEMM
 __UNROLL(Provider::kEigen);
-#endif  // MARIAN_USE_EIGEN_SGEMM
+#endif  // MARIAN_WITH_EIGEN_SGEMM
 
 #undef __UNROLL
 

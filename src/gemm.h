@@ -32,23 +32,23 @@
 #include <memory>
 #include <vector>
 
-#ifdef MARIAN_USE_RUY_SGEMM
+#ifdef MARIAN_WITH_RUY_SGEMM
 #include <ruy/ruy.h>
 #include <ruy/system_aligned_alloc.h>
-#endif  // MARIAN_USE_RUY_SGEMM
+#endif  // MARIAN_WITH_RUY_SGEMM
 
-#ifdef MARIAN_USE_MKL
+#ifdef MARIAN_WITH_MKL
 #include <mkl.h>
-#endif  // MARIAN_USE_MKL
+#endif  // MARIAN_WITH_MKL
 
-#ifdef MARIAN_USE_EIGEN_SGEMM
+#ifdef MARIAN_WITH_EIGEN_SGEMM
 #include "Eigen/Core"
 #include "Eigen/Dense"
-#endif  // MARIAN_USE_EIGEN_SGEMM
+#endif  // MARIAN_WITH_EIGEN_SGEMM
 
-#ifdef MARIAN_USE_BLAS
+#ifdef MARIAN_WITH_BLAS
 #include <cblas.h>
-#endif  // MARIAN_USE_BLAS
+#endif  // MARIAN_WITH_BLAS
 
 #include "tensor.h"
 
@@ -117,25 +117,25 @@ void dispatch(std::string provider,
 // at compile-time by adjusting precedence in the sequence below.
 
 static const Provider kChosenProvider = std::max({Provider::kNone
-#ifdef MARIAN_USE_RUY_SGEMM
+#ifdef MARIAN_WITH_RUY_SGEMM
                                                   ,
                                                   Provider::kRuy
-#endif  // MARIAN_USE_RUY_SGEMM
+#endif  // MARIAN_WITH_RUY_SGEMM
 
-#ifdef MARIAN_USE_MKL
+#ifdef MARIAN_WITH_MKL
                                                   ,
                                                   Provider::kMKL
-#endif  // MARIAN_USE_MKL
+#endif  // MARIAN_WITH_MKL
 
-#ifdef MARIAN_USE_EIGEN_SGEMM
+#ifdef MARIAN_WITH_EIGEN_SGEMM
                                                   ,
                                                   Provider::kEigen
-#endif  // MARIAN_USE_EIGEN_SGEMM
+#endif  // MARIAN_WITH_EIGEN_SGEMM
 
-#ifdef MARIAN_USE_BLAS
+#ifdef MARIAN_WITH_BLAS
                                                   ,
                                                   Provider::kBLAS
-#endif  // MARIAN_USE_BLAS
+#endif  // MARIAN_WITH_BLAS
 });
 
 #ifndef SGEMM_IMPL_

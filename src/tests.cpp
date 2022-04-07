@@ -50,20 +50,20 @@ void compare_random(std::string Provider1, std::string Provider2) {
   }
 }
 
-#if defined(MARIAN_USE_RUY_SGEMM) && defined(MARIAN_USE_MKL)
+#if defined(MARIAN_WITH_RUY_SGEMM) && defined(MARIAN_WITH_MKL)
 TEST(RuyVsMKL, Combinations) {
   compare_random("ruy", "mkl");
 }
-#endif  // defined(MARIAN_USE_RUY_SGEMM) && defined(MARIAN_USE_MKL)
+#endif  // defined(MARIAN_WITH_RUY_SGEMM) && defined(MARIAN_WITH_MKL)
 
-#if defined(MARIAN_USE_RUY_SGEMM) && defined(MARIAN_USE_EIGEN_SGEMM)
+#if defined(MARIAN_WITH_RUY_SGEMM) && defined(MARIAN_WITH_EIGEN_SGEMM)
 TEST(RuyVsEigen, Combinations) {
   compare_random("ruy", "eigen");
 }
-#endif  // defined(MARIAN_USE_RUY_SGEMM) && defined(MARIAN_USE_EIGEN_SGEMM)
+#endif  // defined(MARIAN_WITH_RUY_SGEMM) && defined(MARIAN_WITH_EIGEN_SGEMM)
 
-#if defined(MARIAN_USE_MKL) && defined(MARIAN_USE_EIGEN_SGEMM)
+#if defined(MARIAN_WITH_MKL) && defined(MARIAN_WITH_EIGEN_SGEMM)
 TEST(MKLVsEigen, Combinations) {
   compare_random("mkl", "eigen");
 }
-#endif  //defined(MARIAN_USE_MKL) && defined(MARIAN_USE_EIGEN_SGEMM)
+#endif  //defined(MARIAN_WITH_MKL) && defined(MARIAN_WITH_EIGEN_SGEMM)
