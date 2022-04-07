@@ -24,7 +24,7 @@
 // to GEMM API arguments.
 //
 // Units are added or removed as a whole, without interspersing ifdefs in an
-// attempt to DRY. This leads to an increased verbosity, much the units are
+// attempt to DRY. This leads to an increased verbosity, but the units are
 // much more pliable.
 
 #include <cstdlib>
@@ -58,17 +58,30 @@ namespace gemm {
 // The following is about to be used further down below in templating multiple
 // implementations, allowing them to exist in an ODR compatible way.
 enum class Provider {
-  kNone,
-  kEigen,  // Eigen Library; Portable fallback. Works on most platforms. Used by
-           // WASM
-  kMKL,    //
-  kBLAS,   //
-  kRuy,    // Ruy, targetting ARM. X86 etc available, but not best.
-  kARMPL   // ARM Performance Library
+  kNone  = 0,  // Default: ABORT at runtime.
+  kEigen = 1,  // Eigen Library; Portable fallback. Works on most platforms.
+               // Used by  WASM
+  kRuy   = 2,  // Ruy, targetting ARM. X86 etc available, but not best.
+  kBLAS  = 3,  // OpenBLAS, Netlib (c)BLAS etc. Some provider which implements the BLAS API.
+  kMKL   = 4,  // Intel provides MKL library which is tuned for performance.
+  kARMPL = 5   // ARM Performance Library
 };
 
-// A marian connected GEMM function. Arguments are in the order of the
-// expression being evaluated:
+// This is a temporary hack to improve readability, edit easiness.
+// TODO: Fix by means of sed replacement.
+#define MARIAN_GEMM_ARGS                                                                          \
+  const bool transA, const bool transB, const int M, const int N, const int K, const float alpha, \
+      const float *A, const int lda, const float *B, const int ldb, const float beta, float *C,   \
+      const int ldc
+
+template <enum Provider>
+inline void Gemm(MARIAN_GEMM_ARGS);
+
+template <enum Provider>
+inline void GemmBatched(MARIAN_GEMM_ARGS, int batchSize);
+
+// A marian function which dispatches to the relevant GEMM function which is
+// one of the specializations of the above declaration.
 //
 //    C = alpha * op(A) * op(B) + beta*C
 //
@@ -78,20 +91,8 @@ enum class Provider {
 // op(A) is an M x K matrix, op(B) is a K x N matrix. Supply M, K, N
 // accordingly.
 //
-
-// This is a temporary hack to improve readability.
-// TODO: Fix by means of sed replacement.
-#define MARIAN_GEMM_ARGS                                                                          \
-  const bool transA, const bool transB, const int M, const int N, const int K, const float alpha, \
-      const float *A, const int lda, const float *B, const int ldb, const float beta, float *C,   \
-      const int ldc
-
-// The following two are configured to ABORT (Provider = kNone).
-template <enum Provider>
-inline void Gemm(MARIAN_GEMM_ARGS);
-
-template <enum Provider>
-inline void GemmBatched(MARIAN_GEMM_ARGS, int batchSize);
+// Intention is to replace the contents of thus function in
+// browsermt/marian-dev, while working organizing providers behind these.
 
 void ProdBatchedOld(marian::Tensor C,
                     const marian::Tensor A,
@@ -101,6 +102,7 @@ void ProdBatchedOld(marian::Tensor C,
                     float beta,
                     float alpha);
 
+// Convenience function to dispatch GEMM by means of string provider.
 void dispatch(std::string provider,
               marian::Tensor C,
               const marian::Tensor A,
@@ -109,6 +111,32 @@ void dispatch(std::string provider,
               bool transB,
               float beta,
               float alpha);
+
+// TODO: We have flattened declarations/definitions. Many
+// GemmBatched<provider>, Gemm<provider> exist. A sane default can be choosen
+// at compile-time by adjusting precedence in the sequence below.
+
+static const Provider kChosenProvider = std::max({Provider::kNone
+#ifdef MARIAN_USE_RUY_SGEMM
+                                                  ,
+                                                  Provider::kRuy
+#endif  // MARIAN_USE_RUY_SGEMM
+
+#ifdef MARIAN_USE_MKL
+                                                  ,
+                                                  Provider::kMKL
+#endif  // MARIAN_USE_MKL
+
+#ifdef MARIAN_USE_EIGEN_SGEMM
+                                                  ,
+                                                  Provider::kEigen
+#endif  // MARIAN_USE_EIGEN_SGEMM
+
+#ifdef MARIAN_USE_BLAS
+                                                  ,
+                                                  Provider::kBLAS
+#endif  // MARIAN_USE_BLAS
+});
 
 #ifndef SGEMM_IMPL_
 #define SGEMM_IMPL_

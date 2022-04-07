@@ -2,6 +2,9 @@
 #error "This is an implementation file and should not be included directly."
 #endif
 
+// Base case: ABORT; Converts compile time errors into runtime errors.
+// This is also a future hook to replace with a standard-CPP implementation if
+// necessary.
 template <enum Provider>
 inline void Gemm(MARIAN_GEMM_ARGS) {
   ABORT("No available GEMM Implementation;");
@@ -11,6 +14,8 @@ template <enum Provider>
 inline void GemmBatched(MARIAN_GEMM_ARGS, int batchSize) {
   ABORT("No available GEMM (Batched) Implementation;");
 }
+
+// EIGEN Specializations
 
 #ifdef MARIAN_USE_EIGEN_SGEMM
 
@@ -353,24 +358,7 @@ void ProdBatchedOld(marian::Tensor C,
                     float alpha) {
   size_t M, K, N, lda, ldb, ldc, batchSize;
   inferGemmParamsFromTensor(C, A, B, transA, transB, M, N, K, lda, ldb, ldc, batchSize);
-
-#ifdef MARIAN_USE_MKL
-  GemmBatched<Provider::kMKL>(transA,
-                              transB,
-                              M,
-                              N,
-                              K,
-                              alpha,
-                              A->data(),
-                              lda,
-                              B->data(),
-                              ldb,
-                              beta,
-                              C->data(),
-                              ldc,
-                              batchSize);
-#else   // MARIAN_USE_MKL
-  GemmBatched<Provider::kBLAS>(transA,
+  GemmBatched<kChosenProvider>(transA,
                                transB,
                                M,
                                N,
@@ -384,7 +372,6 @@ void ProdBatchedOld(marian::Tensor C,
                                C->data(),
                                ldc,
                                batchSize);
-#endif  // MARIAN_USE_MKL
 }
 
 #ifndef SGEMM_IMPL_
