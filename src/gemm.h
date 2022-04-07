@@ -116,27 +116,23 @@ void dispatch(std::string provider,
 // GemmBatched<provider>, Gemm<provider> exist. A sane default can be choosen
 // at compile-time by adjusting precedence in the sequence below.
 
-static const Provider kChosenProvider = std::max({Provider::kNone
+// clang-format off
+static const Provider kChosenProvider = std::max({
+       Provider::kNone
 #ifdef MARIAN_WITH_RUY_SGEMM
-                                                  ,
-                                                  Provider::kRuy
+     , Provider::kRuy
 #endif  // MARIAN_WITH_RUY_SGEMM
-
 #ifdef MARIAN_WITH_MKL
-                                                  ,
-                                                  Provider::kMKL
+    , Provider::kMKL
 #endif  // MARIAN_WITH_MKL
-
 #ifdef MARIAN_WITH_EIGEN_SGEMM
-                                                  ,
-                                                  Provider::kEigen
+    , Provider::kEigen
 #endif  // MARIAN_WITH_EIGEN_SGEMM
-
 #ifdef MARIAN_WITH_BLAS
-                                                  ,
-                                                  Provider::kBLAS
+    , Provider::kBLAS
 #endif  // MARIAN_WITH_BLAS
 });
+// clang-format on
 
 #ifndef SGEMM_IMPL_
 #define SGEMM_IMPL_
