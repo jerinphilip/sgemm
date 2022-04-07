@@ -31,9 +31,6 @@ using ConstEigenOuterStridedMatrixMap
 
 template <>
 inline void Gemm<Provider::kEigen>(MARIAN_GEMM_ARGS) {
-  CBLAS_TRANSPOSE trans_A = transA ? CblasTrans : CblasNoTrans;
-  CBLAS_TRANSPOSE trans_B = transB ? CblasTrans : CblasNoTrans;
-
   // Taken from https://github.com/pytorch/pytorch/blob/0d7aad822e77b9f5ca9649114b6c2cbdf54564e3/caffe2/utils/math_cpu.cc#L155
   // PyTorch. BSD License.
   EigenOuterStridedMatrixMap<float> C_mat(C, N, M, EigenOuterStride(ldc));
@@ -43,50 +40,31 @@ inline void Gemm<Provider::kEigen>(MARIAN_GEMM_ARGS) {
     C_mat *= beta;
   }
 
-  switch(trans_A) {
-    case CblasNoTrans: {
-      switch(trans_B) {
-        case CblasNoTrans:
-          C_mat.noalias()
-              += alpha
-                 * (ConstEigenOuterStridedMatrixMap<float>(B, N, K, EigenOuterStride(ldb))
-                    * ConstEigenOuterStridedMatrixMap<float>(A, K, M, EigenOuterStride(lda)));
-          return;
-        case CblasTrans:
-          C_mat.noalias()
-              += alpha
-                 * (ConstEigenOuterStridedMatrixMap<float>(B, K, N, EigenOuterStride(ldb))
-                        .transpose()
-                    * ConstEigenOuterStridedMatrixMap<float>(A, K, M, EigenOuterStride(lda)));
-          return;
-        default:
-          ABORT("Unexpected CBLAS_TRANSPOSE for trans_B");
-          return;  // The line above calls `abort()`. Should never reach here.
-      }
+  if(transA) {
+    if(transB) {
+      C_mat.noalias()
+          += alpha
+             * (ConstEigenOuterStridedMatrixMap<float>(B, K, N, EigenOuterStride(ldb)).transpose()
+                * ConstEigenOuterStridedMatrixMap<float>(A, M, K, EigenOuterStride(lda))
+                      .transpose());
+    } else {
+      C_mat.noalias() += alpha
+                         * (ConstEigenOuterStridedMatrixMap<float>(B, N, K, EigenOuterStride(ldb))
+                            * ConstEigenOuterStridedMatrixMap<float>(A, M, K, EigenOuterStride(lda))
+                                  .transpose());
     }
-    case CblasTrans: {
-      switch(trans_B) {
-        case CblasNoTrans:
-          C_mat.noalias()
-              += alpha
-                 * (ConstEigenOuterStridedMatrixMap<float>(B, N, K, EigenOuterStride(ldb))
-                    * ConstEigenOuterStridedMatrixMap<float>(A, M, K, EigenOuterStride(lda))
-                          .transpose());
-          return;
-        case CblasTrans:
-          C_mat.noalias()
-              += alpha
-                 * (ConstEigenOuterStridedMatrixMap<float>(B, K, N, EigenOuterStride(ldb))
-                        .transpose()
-                    * ConstEigenOuterStridedMatrixMap<float>(A, M, K, EigenOuterStride(lda))
-                          .transpose());
-          return;
-        default:
-          ABORT("Unexpected CBLAS_TRANSPOSE for trans_B");
-          return;  // The line above calls `abort()`. Should never reach here.
-      }
+  } else {
+    if(transB) {
+      C_mat.noalias()
+          += alpha
+             * (ConstEigenOuterStridedMatrixMap<float>(B, K, N, EigenOuterStride(ldb)).transpose()
+                * ConstEigenOuterStridedMatrixMap<float>(A, K, M, EigenOuterStride(lda)));
+    } else {
+      C_mat.noalias()
+          += alpha
+             * (ConstEigenOuterStridedMatrixMap<float>(B, N, K, EigenOuterStride(ldb))
+                * ConstEigenOuterStridedMatrixMap<float>(A, K, M, EigenOuterStride(lda)));
     }
-    default: ABORT("Unexpected CBLAS_TRANSPOSE for trans_A");
   }
 }
 #endif  // MARIAN_USE_EIGEN_SGEMM
