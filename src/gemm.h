@@ -112,9 +112,9 @@ void dispatch(std::string provider,
               float beta,
               float alpha);
 
-// TODO: We have flattened declarations/definitions. Many
+// We have flattened declarations/definitions. Options at provider for
 // GemmBatched<provider>, Gemm<provider> exist. A sane default can be choosen
-// at compile-time by adjusting precedence in the sequence below.
+// at run-time by adjusting precedence in the sequence below.
 
 // clang-format off
 static const Provider kChosenProvider = std::max({

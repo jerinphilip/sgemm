@@ -16,7 +16,6 @@ inline void GemmBatched(MARIAN_GEMM_ARGS, int batchSize) {
 }
 
 // EIGEN Specializations
-
 #ifdef MARIAN_WITH_EIGEN_SGEMM
 
 // Minimum definitions required for the PyTorch import to work. Taken from:
@@ -130,6 +129,8 @@ inline void inferGemmParamsFromTensor(marian::Tensor C,
 #ifdef MARIAN_WITH_RUY_SGEMM
 namespace {
 
+// AlignedVector allocates aligned memory and cleans up after itself. RAII
+// wrapper similar to intgemm's AlignedVector.
 template <class T>
 class AlignedVector {
 public:
@@ -192,6 +193,9 @@ inline void Gemm<Provider::kRuy>(MARIAN_GEMM_ARGS) {
   }
 }
 
+// We need a temporary matrix for ruy based GEMM computations. The
+// GemmBatched<kRuy> specialization makes only one allocation.  Otherwise, same
+// as Gemm<kRuy> around a for loop.
 template <>
 void GemmBatched<Provider::kRuy>(MARIAN_GEMM_ARGS, int batchSize) {
   ruy::Context context;
@@ -241,6 +245,7 @@ void GemmBatched<Provider::kRuy>(MARIAN_GEMM_ARGS, int batchSize) {
 
 #ifdef MARIAN_WITH_MKL
 
+// MKL provides cblas_sgemm_batch optimized for performance on intel hardware.
 template <>
 inline void GemmBatched<Provider::kMKL>(MARIAN_GEMM_ARGS, int batchSize) {
   CBLAS_TRANSPOSE trans_A = transA ? CblasTrans : CblasNoTrans;
@@ -292,9 +297,8 @@ inline void GemmBatched<Provider::kMKL>(MARIAN_GEMM_ARGS, int batchSize) {
 }
 #endif  // MARIAN_WITH_MKL \
 
-// See documentation for Gemm above. Adds a batchSize parameter, which is used
-// if the available libraries provide one. Else, we resort to using an explicit
-// batching.
+// GemmBatched<> by means of looping Gemm<>, applies to kEigen and kBLAS which
+// doesn't have a more optimal batched-variant.
 #define __UNROLL(provider)                                             \
   template <>                                                          \
   inline void GemmBatched<provider>(MARIAN_GEMM_ARGS, int batchSize) { \
@@ -319,10 +323,12 @@ inline void GemmBatched<Provider::kMKL>(MARIAN_GEMM_ARGS, int batchSize) {
     }                                                                  \
   }
 
+// Applied to kBLAS
 #ifdef MARIAN_WITH_BLAS
 __UNROLL(Provider::kBLAS);
 #endif  // MARIAN_WITH_BLAS
 
+// Applied to kEigen
 #ifdef MARIAN_WITH_EIGEN_SGEMM
 __UNROLL(Provider::kEigen);
 #endif  // MARIAN_WITH_EIGEN_SGEMM
