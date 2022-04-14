@@ -44,13 +44,6 @@ if(MARIAN_WITH_MKL)
   target_link_libraries(marian_sgemm PUBLIC MKL::MKL)
 endif(MARIAN_WITH_MKL)
 
-if(MARIAN_WITH_OPENBLAS)
-  set(BLA_VENDOR OpenBLAS)
-  find_package(BLAS REQUIRED)
-  target_compile_definitions(marian_sgemm PUBLIC MARIAN_WITH_BLAS)
-  target_link_libraries(marian_sgemm PUBLIC CBLAS::CBLAS)
-endif(MARIAN_WITH_OPENBLAS)
-
 if(MARIAN_WITH_CBLAS)
   find_package(CBLAS REQUIRED)
   target_compile_definitions(marian_sgemm PUBLIC MARIAN_WITH_BLAS)
