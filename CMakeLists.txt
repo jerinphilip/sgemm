@@ -67,9 +67,9 @@ if(MARIAN_WITH_APPLE_ACCELERATE)
     set(BLAS_VENDOR "Accelerate")
     # see https://developer.apple.com/documentation/accelerate for more info
     # you may need to install Xcode command line tools if you don't have them already (https://developer.apple.com/xcode/features/)
-    target_include_directories(marian_sgemm "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Accelerate.framework/Frameworks/vecLib.framework/Headers")
-    target_link_libraries(marian_sgemm "-framework Accelerate")
-    target_compile_definitions(MARIAN_WITH_BLAS)
+    target_include_directories(marian_sgemm PUBLIC "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Accelerate.framework/Frameworks/vecLib.framework/Headers")
+    target_link_libraries(marian_sgemm PUBLIC "-framework Accelerate")
+    target_compile_definitions(marian_sgemm PUBLIC MARIAN_WITH_BLAS)
 endif(MARIAN_WITH_APPLE_ACCELERATE)
 
 
