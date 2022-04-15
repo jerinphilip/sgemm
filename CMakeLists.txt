@@ -38,10 +38,13 @@ add_subdirectory(3rd-party)
 add_library(marian_sgemm STATIC src/tensor.cpp)
 target_include_directories(marian_sgemm PUBLIC ${CMAKE_SOURCE_DIR})
 
+find_package(Threads REQUIRED)
+target_link_libraries(marian_sgemm PUBLIC Threads::Threads)
+
 if(MARIAN_WITH_MKL)
   find_package(MKL REQUIRED)
   target_compile_definitions(marian_sgemm PUBLIC MARIAN_WITH_MKL)
-  target_link_libraries(marian_sgemm PUBLIC MKL::MKL)
+  target_link_libraries(marian_sgemm PUBLIC MKL::MKL ${CMAKE_DL_LIBS})
 endif(MARIAN_WITH_MKL)
 
 if(MARIAN_WITH_CBLAS)
@@ -60,7 +63,6 @@ if(MARIAN_WITH_EIGEN_SGEMM)
   target_compile_definitions(marian_sgemm PUBLIC MARIAN_WITH_EIGEN_SGEMM)
 endif(MARIAN_WITH_EIGEN_SGEMM)
 
-find_package(Threads REQUIRED)
 
 add_executable(main src/main.cpp)
 target_link_libraries(main PUBLIC marian_sgemm)

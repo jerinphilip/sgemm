@@ -67,18 +67,36 @@ enum class Provider {
   kARMPL = 5   // ARM Performance Library
 };
 
-// This is a temporary hack to improve readability, edit easiness.
-// TODO: Fix by means of sed replacement.
-#define MARIAN_GEMM_ARGS                                                                          \
-  const bool transA, const bool transB, const int M, const int N, const int K, const float alpha, \
-      const float *A, const int lda, const float *B, const int ldb, const float beta, float *C,   \
-      const int ldc
+template <enum Provider>
+inline void Gemm(const bool transA,
+                 const bool transB,
+                 const int M,
+                 const int N,
+                 const int K,
+                 const float alpha,
+                 const float *A,
+                 const int lda,
+                 const float *B,
+                 const int ldb,
+                 const float beta,
+                 float *C,
+                 const int ldc);
 
 template <enum Provider>
-inline void Gemm(MARIAN_GEMM_ARGS);
-
-template <enum Provider>
-inline void GemmBatched(MARIAN_GEMM_ARGS, int batchSize);
+inline void GemmBatched(const bool transA,
+                        const bool transB,
+                        const int M,
+                        const int N,
+                        const int K,
+                        const float alpha,
+                        const float *A,
+                        const int lda,
+                        const float *B,
+                        const int ldb,
+                        const float beta,
+                        float *C,
+                        const int ldc,
+                        int batchSize);
 
 // A marian function which dispatches to the relevant GEMM function which is
 // one of the specializations of the above declaration.
@@ -138,8 +156,6 @@ static const Provider kChosenProvider = std::max({
 #define SGEMM_IMPL_
 #include "gemm-impl.cpp"
 #endif
-
-#undef MARIAN_GEMM_ARGS
 
 }  // namespace gemm
 }  // namespace marian

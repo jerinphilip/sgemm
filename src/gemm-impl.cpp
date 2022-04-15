@@ -6,12 +6,37 @@
 // This is also a future hook to replace with a standard-CPP implementation if
 // necessary.
 template <enum Provider>
-inline void Gemm(MARIAN_GEMM_ARGS) {
+inline void Gemm(const bool transA,
+                 const bool transB,
+                 const int M,
+                 const int N,
+                 const int K,
+                 const float alpha,
+                 const float *A,
+                 const int lda,
+                 const float *B,
+                 const int ldb,
+                 const float beta,
+                 float *C,
+                 const int ldc) {
   ABORT("No available GEMM Implementation;");
 }
 
 template <enum Provider>
-inline void GemmBatched(MARIAN_GEMM_ARGS, int batchSize) {
+inline void GemmBatched(const bool transA,
+                        const bool transB,
+                        const int M,
+                        const int N,
+                        const int K,
+                        const float alpha,
+                        const float *A,
+                        const int lda,
+                        const float *B,
+                        const int ldb,
+                        const float beta,
+                        float *C,
+                        const int ldc,
+                        int batchSize) {
   ABORT("No available GEMM (Batched) Implementation;");
 }
 
@@ -29,7 +54,19 @@ using ConstEigenOuterStridedMatrixMap
     = Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>, 0, EigenOuterStride>;
 
 template <>
-inline void Gemm<Provider::kEigen>(MARIAN_GEMM_ARGS) {
+inline void Gemm<Provider::kEigen>(const bool transA,
+                                   const bool transB,
+                                   const int M,
+                                   const int N,
+                                   const int K,
+                                   const float alpha,
+                                   const float *A,
+                                   const int lda,
+                                   const float *B,
+                                   const int ldb,
+                                   const float beta,
+                                   float *C,
+                                   const int ldc) {
   // Taken from https://github.com/pytorch/pytorch/blob/0d7aad822e77b9f5ca9649114b6c2cbdf54564e3/caffe2/utils/math_cpu.cc#L155
   // PyTorch. BSD License.
   EigenOuterStridedMatrixMap<float> C_mat(C, N, M, EigenOuterStride(ldc));
@@ -70,7 +107,19 @@ inline void Gemm<Provider::kEigen>(MARIAN_GEMM_ARGS) {
 
 #ifdef MARIAN_WITH_BLAS
 template <>
-inline void Gemm<Provider::kBLAS>(MARIAN_GEMM_ARGS) {
+inline void Gemm<Provider::kBLAS>(const bool transA,
+                                  const bool transB,
+                                  const int M,
+                                  const int N,
+                                  const int K,
+                                  const float alpha,
+                                  const float *A,
+                                  const int lda,
+                                  const float *B,
+                                  const int ldb,
+                                  const float beta,
+                                  float *C,
+                                  const int ldc) {
   // Converting booleans to CBLAS_TRANSPOSE (char).
   CBLAS_TRANSPOSE cTransA = transA ? CblasTrans : CblasNoTrans;
   CBLAS_TRANSPOSE cTransB = transB ? CblasTrans : CblasNoTrans;
@@ -157,7 +206,19 @@ private:
 }  // namespace
 
 template <>
-inline void Gemm<Provider::kRuy>(MARIAN_GEMM_ARGS) {
+inline void Gemm<Provider::kRuy>(const bool transA,
+                                 const bool transB,
+                                 const int M,
+                                 const int N,
+                                 const int K,
+                                 const float alpha,
+                                 const float *A,
+                                 const int lda,
+                                 const float *B,
+                                 const int ldb,
+                                 const float beta,
+                                 float *C,
+                                 const int ldc) {
   ruy::Context context;
 
   // If we need to transpose, we can swap dimensions in layout claim the matrix
@@ -197,7 +258,20 @@ inline void Gemm<Provider::kRuy>(MARIAN_GEMM_ARGS) {
 // GemmBatched<kRuy> specialization makes only one allocation.  Otherwise, same
 // as Gemm<kRuy> around a for loop.
 template <>
-void GemmBatched<Provider::kRuy>(MARIAN_GEMM_ARGS, int batchSize) {
+void GemmBatched<Provider::kRuy>(const bool transA,
+                                 const bool transB,
+                                 const int M,
+                                 const int N,
+                                 const int K,
+                                 const float alpha,
+                                 const float *A,
+                                 const int lda,
+                                 const float *B,
+                                 const int ldb,
+                                 const float beta,
+                                 float *C,
+                                 const int ldc,
+                                 int batchSize) {
   ruy::Context context;
 
   // If we need to transpose, we can swap dimensions in layout claim the matrix
@@ -247,7 +321,20 @@ void GemmBatched<Provider::kRuy>(MARIAN_GEMM_ARGS, int batchSize) {
 
 // MKL provides cblas_sgemm_batch optimized for performance on intel hardware.
 template <>
-inline void GemmBatched<Provider::kMKL>(MARIAN_GEMM_ARGS, int batchSize) {
+inline void GemmBatched<Provider::kMKL>(const bool transA,
+                                        const bool transB,
+                                        const int M,
+                                        const int N,
+                                        const int K,
+                                        const float alpha,
+                                        const float *A,
+                                        const int lda,
+                                        const float *B,
+                                        const int ldb,
+                                        const float beta,
+                                        float *C,
+                                        const int ldc,
+                                        int batchSize) {
   CBLAS_TRANSPOSE trans_A = transA ? CblasTrans : CblasNoTrans;
   CBLAS_TRANSPOSE trans_B = transB ? CblasTrans : CblasNoTrans;
 
@@ -299,28 +386,41 @@ inline void GemmBatched<Provider::kMKL>(MARIAN_GEMM_ARGS, int batchSize) {
 
 // GemmBatched<> by means of looping Gemm<>, applies to kEigen and kBLAS which
 // doesn't have a more optimal batched-variant.
-#define __UNROLL(provider)                                             \
-  template <>                                                          \
-  inline void GemmBatched<provider>(MARIAN_GEMM_ARGS, int batchSize) { \
-    size_t strideA = M * K;                                            \
-    size_t strideB = K * N;                                            \
-    size_t strideC = M * N;                                            \
-                                                                       \
-    for(size_t i = 0; i < batchSize; ++i) {                            \
-      Gemm<provider>(transA,                                           \
-                     transB,                                           \
-                     M,                                                \
-                     N,                                                \
-                     K,                                                \
-                     alpha,                                            \
-                     A + i * strideA,                                  \
-                     lda,                                              \
-                     B + i * strideB,                                  \
-                     ldb,                                              \
-                     beta,                                             \
-                     C + i * strideC,                                  \
-                     ldc);                                             \
-    }                                                                  \
+#define __UNROLL(provider)                             \
+  template <>                                          \
+  inline void GemmBatched<provider>(const bool transA, \
+                                    const bool transB, \
+                                    const int M,       \
+                                    const int N,       \
+                                    const int K,       \
+                                    const float alpha, \
+                                    const float *A,    \
+                                    const int lda,     \
+                                    const float *B,    \
+                                    const int ldb,     \
+                                    const float beta,  \
+                                    float *C,          \
+                                    const int ldc,     \
+                                    int batchSize) {   \
+    size_t strideA = M * K;                            \
+    size_t strideB = K * N;                            \
+    size_t strideC = M * N;                            \
+                                                       \
+    for(size_t i = 0; i < batchSize; ++i) {            \
+      Gemm<provider>(transA,                           \
+                     transB,                           \
+                     M,                                \
+                     N,                                \
+                     K,                                \
+                     alpha,                            \
+                     A + i * strideA,                  \
+                     lda,                              \
+                     B + i * strideB,                  \
+                     ldb,                              \
+                     beta,                             \
+                     C + i * strideC,                  \
+                     ldc);                             \
+    }                                                  \
   }
 
 // Applied to kBLAS
@@ -371,7 +471,21 @@ void dispatch(std::string provider,
   size_t M, N, K, batchSize, lda, ldb, ldc;
   inferGemmParamsFromTensor(C, A, B, transA, transB, M, N, K, lda, ldb, ldc, batchSize);
 
-  void (*gemmFn)(MARIAN_GEMM_ARGS, int batchSize) = nullptr;
+  void (*gemmFn)(const bool transA,
+                 const bool transB,
+                 const int M,
+                 const int N,
+                 const int K,
+                 const float alpha,
+                 const float *A,
+                 const int lda,
+                 const float *B,
+                 const int ldb,
+                 const float beta,
+                 float *C,
+                 const int ldc,
+                 int batchSize)
+      = nullptr;
 
   if(provider == "ruy") {
     gemmFn = &GemmBatched<Provider::kRuy>;
@@ -401,5 +515,3 @@ void dispatch(std::string provider,
          ldc,
          batchSize);
 }
-
-#undef MARIAN_GEMM_ARGS
