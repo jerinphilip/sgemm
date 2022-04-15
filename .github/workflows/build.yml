@@ -182,6 +182,10 @@ jobs:
     - name: ccache epilog
       run: 'ccache -s # Print current cache stats'
 
+    - name: Run tests
+      working-directory: build
+      run: ./tests
+
     - name: Print Versions
       working-directory: build
-      run: ./app/bergamot --version
+      run: bash ../scripts/run.sh
