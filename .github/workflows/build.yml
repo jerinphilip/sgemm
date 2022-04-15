@@ -185,7 +185,3 @@ jobs:
     - name: Run tests
       working-directory: build
       run: ./tests
-
-    - name: Benchmarks
-      working-directory: build
-      run: bash ../scripts/run.sh
