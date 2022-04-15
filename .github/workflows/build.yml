@@ -41,7 +41,7 @@ jobs:
     - name: Install Dependencies
       run: |-
         sudo apt-get update
-        sudo apt-get install -y ccache
+        sudo apt-get install -y ccache libblas-dev
 
     - name: Install MKL
       run: |-
