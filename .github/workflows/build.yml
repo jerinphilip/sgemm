@@ -101,3 +101,87 @@ jobs:
       working-directory: build
       run: bash ../scripts/run.sh
 
+  mac:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - name: mac-accelerate+ruy+eigen
+          os: macos-10.15
+          identifier: macos-xlr8-no-blas
+          cmake: -DMARIAN_WITH_MKL=OFF -DMARIAN_WITH_RUY_SGEMM=ON -DMARIAN_WITH_EIGEN_SGEMM=ON -DMARIAN_WITH_APPLE_ACCELERATE=ON
+
+        - name: mac-cblas+ruy+eigen
+          os: macos-10.15
+          identifier: macos-blas-no-xlr8
+          cmake: -DMARIAN_WITH_MKL=OFF -DMARIAN_WITH_CBLAS=ON  -DMARIAN_WITH_RUY_SGEMM=ON -DMARIAN_WITH_EIGEN_SGEMM=ON
+
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        submodules: recursive
+    - name: Install Dependencies
+      run: |-
+        brew update
+        brew install openblas ccache coreutils findutils
+
+    - name: Setup path with gnu
+      run: |-
+        echo "/usr/local/opt/coreutils/libexec/gnubin" >> $GITHUB_PATH
+        echo "/usr/local/opt/findutils/libexec/gnubin" >> $GITHUB_PATH
+
+    - name: Setup BLAS
+      run: |-
+        echo "LDFLAGS=-L/usr/local/opt/openblas/lib" >> $GITHUB_ENV
+        echo "CPPFLAGS=-I/usr/local/opt/openblas/include" >> $GITHUB_ENV
+
+    - name: Generate ccache_vars for ccache based on machine
+      shell: bash
+      id: ccache_vars
+      run: |-
+        echo "::set-output name=hash::$(echo ${{ env.ccache_compilercheck }})"
+        echo "::set-output name=timestamp::$(date '+%Y-%m-%dT%H.%M.%S')"
+
+    - name: Cache-op for build-cache through ccache
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.ccache_dir }}
+        key: ccache-${{ matrix.identifier }}-${{ steps.ccache_vars.outputs.hash }}-${{ github.ref }}-${{ steps.ccache_vars.outputs.timestamp }}
+        restore-keys: |-
+          ccache-${{ matrix.identifier }}-${{ steps.ccache_vars.outputs.hash }}-${{ github.ref }}
+          ccache-${{ matrix.identifier }}-${{ steps.ccache_vars.outputs.hash }}
+          ccache-${{ matrix.identifier }}
+
+    - name: ccache environment setup
+      run: |-
+        echo "CCACHE_COMPILER_CHECK=${{ env.ccache_compilercheck }}" >> $GITHUB_ENV
+        echo "CCACHE_BASEDIR=${{ env.ccache_basedir }}" >> $GITHUB_ENV
+        echo "CCACHE_COMPRESS=${{ env.ccache_compress }}" >> $GITHUB_ENV
+        echo "CCACHE_COMPRESSLEVEL=${{ env.ccache_compresslevel }}" >> $GITHUB_ENV
+        echo "CCACHE_DIR=${{ env.ccache_dir }}" >> $GITHUB_ENV
+        echo "CCACHE_MAXSIZE=${{ env.ccache_maxsize }}" >> $GITHUB_ENV
+
+    - name: ccache prolog
+      run: |-
+        ccache -s # Print current cache stats
+        ccache -z # Zero cache entry
+
+    - name: cmake
+      run: |-
+        mkdir -p build
+        cd build
+        cmake -L .. ${{ matrix.cmake }} ${{ env.ccache_cmake }}
+
+    - name: Build from source
+      working-directory: build
+      run: make -j2
+
+    - name: ccache epilog
+      run: 'ccache -s # Print current cache stats'
+
+    - name: Run tests
+      working-directory: build
+      run: ./tests

@@ -67,3 +67,9 @@ TEST(MKLVsEigen, Combinations) {
   compare_random("mkl", "eigen");
 }
 #endif  //defined(MARIAN_WITH_MKL) && defined(MARIAN_WITH_EIGEN_SGEMM)
+
+#if defined(MARIAN_WITH_BLAS) && defined(MARIAN_WITH_EIGEN_SGEMM)
+TEST(BLASVsEigen, Combinations) {
+  compare_random("blas", "eigen");
+}
+#endif  //defined(MARIAN_WITH_BLAS) && defined(MARIAN_WITH_EIGEN_SGEMM)
