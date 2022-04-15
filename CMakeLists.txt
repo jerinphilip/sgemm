@@ -31,7 +31,7 @@ option(MARIAN_WITH_OPENBLAS "Compile with OpenBLAS" OFF)
 option(MARIAN_WITH_CBLAS "Compile with CBLAS" OFF)
 option(MARIAN_WITH_RUY_SGEMM "Compile with ruy sgemm" ON)
 option(MARIAN_WITH_EIGEN_SGEMM "Compile with EIGEN sgemm" OFF)
-option(MARIAN_WITH_APPLE_ACCELERATE "Compile with apple-accelerate support" ON)
+option(MARIAN_WITH_APPLE_ACCELERATE "Compile with apple-accelerate support" OFF)
 
 add_subdirectory(3rd-party)
 
@@ -62,6 +62,15 @@ if(MARIAN_WITH_EIGEN_SGEMM)
   target_link_libraries(marian_sgemm PUBLIC Eigen3::Eigen)
   target_compile_definitions(marian_sgemm PUBLIC MARIAN_WITH_EIGEN_SGEMM)
 endif(MARIAN_WITH_EIGEN_SGEMM)
+
+if(MARIAN_WITH_APPLE_ACCELERATE)
+    set(BLAS_VENDOR "Accelerate")
+    # see https://developer.apple.com/documentation/accelerate for more info
+    # you may need to install Xcode command line tools if you don't have them already (https://developer.apple.com/xcode/features/)
+    target_include_directories(marian_sgemm "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Accelerate.framework/Frameworks/vecLib.framework/Headers")
+    target_link_libraries(marian_sgemm "-framework Accelerate")
+    target_compile_definitions(MARIAN_WITH_BLAS)
+endif(MARIAN_WITH_APPLE_ACCELERATE)
 
 
 add_executable(main src/main.cpp)
