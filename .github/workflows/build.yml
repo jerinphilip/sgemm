@@ -106,7 +106,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        - name: ubuntu-accelerate+ruy+eigen
+        - name: mac-accelerate+ruy+eigen
           os: macos-10.15
           identifier: macos-xlr8-no-blas
           cmake: -DMARIAN_WITH_MKL=OFF -DMARIAN_WITH_RUY_SGEMM=ON -DMARIAN_WITH_EIGEN_SGEMM=ON -DMARIAN_WITH_APPLE_ACCELERATE=ON
