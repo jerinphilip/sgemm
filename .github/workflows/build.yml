@@ -186,6 +186,6 @@ jobs:
       working-directory: build
       run: ./tests
 
-    - name: Print Versions
+    - name: Benchmarks
       working-directory: build
       run: bash ../scripts/run.sh
