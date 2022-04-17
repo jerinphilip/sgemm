@@ -62,6 +62,8 @@ std::ostream &operator<<(std::ostream &out, marian::Tensor &t) {
   // Obtain batch-count by checking how many rows*cols add up to number of elements.
   size_t batchSize = t->shape().size() / (rows * cols);
 
+  out << "Batch: " << t->shape() << "\n";
+
   for(size_t b = 0; b < batchSize; b++) {
     out << "M" << b << ": "
         << "\n";
