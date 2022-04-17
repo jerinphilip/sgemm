@@ -419,7 +419,10 @@ void ProdBatchedOld(marian::Tensor C,
                     bool transB,
                     float beta,
                     float alpha) {
-  Provider kChosenProvider = std::min(kHighestProvider, EnvironmentCPUID());
+  static const Provider kEnvironmentProvider = EnvironmentCPUID();
+
+  Provider kChosenProvider = std::min(kHighestProvider, kEnvironmentProvider);
+
   GemmBatchedDispatchByProvider(kChosenProvider, C, A, B, transA, transB, beta, alpha);
 }
 
