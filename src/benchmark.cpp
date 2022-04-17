@@ -27,7 +27,6 @@ int main(int argc, char *argv[]) {
   app.add_option("--rowsA"      , maxM       , "Rows of A, must be greater than 64");
   app.add_option("--colsA"      , maxK       , "Cols of A = rows B, must be greater than 64");
   app.add_option("--colsB"      , maxN       , "Cols of B, must be greater than 64");
-  app.add_option("--provider"   , provider   , "SGGEMM provider");
   app.add_option("--iterations" , iterations , "Number of iterations");
   app.add_option("--seed"       , seed       , "Seed for random init");
   // clang-format on
@@ -57,7 +56,7 @@ int main(int argc, char *argv[]) {
         B = transB ? generate(N, K) : generate(K, N);
 
         auto C = marian::make_tensor({batchSize, M, N});
-        marian::gemm::dispatch(provider, C, A, B, transA, transB, beta, alpha);
+        marian::gemm::ProdBatchedOld(C, A, B, transA, transB, beta, alpha);
         SGEMM_DEBUG(C);
       }
     }

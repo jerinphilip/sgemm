@@ -28,7 +28,6 @@ int main(int argc, char *argv[]) {
   app.add_option("--beta"      , beta      , "beta value");
   app.add_option("--transA"    , transA    , "Transpose A?");
   app.add_option("--transB"    , transB    , "Transpose B?");
-  app.add_option("--provider"  , provider  , "Backend to use. ruy | eigen | mkl | blas");
   // clang-format on
 
   CLI11_PARSE(app, argc, argv);
@@ -48,7 +47,7 @@ int main(int argc, char *argv[]) {
   }
 
   C = marian::make_tensor({batchSize, M, N});
-  dispatch(provider, C, A, B, (transA == 'T'), (transB == 'T'), alpha, beta);
+  ProdBatchedOld(C, A, B, (transA == 'T'), (transB == 'T'), alpha, beta);
   std::cout << C << std::endl;
 
   return 0;
