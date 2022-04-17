@@ -36,11 +36,10 @@ struct Shape {
   std::string toString() const {
     std::stringstream strm;
     strm << "shape=" << shape_[0];
-    const size_t sz = size();
-    for(int i = 1; i < sz; ++i) {
+    for(int i = 1; i < shape_.size(); ++i) {
       strm << "x" << shape_[i];
     }
-    strm << " size=" << sz;
+    strm << " size=" << shape_.size();
     return strm.str();
   }
 
