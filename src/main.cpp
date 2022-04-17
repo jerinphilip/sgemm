@@ -15,8 +15,6 @@ int main(int argc, char *argv[]) {
   float alpha = 1.0;
   float beta  = 0.0;
 
-  std::string provider = "ruy";
-
   CLI::App app{"App description"};
 
   // clang-format off
