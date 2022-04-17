@@ -45,7 +45,9 @@ int main(int argc, char *argv[]) {
   }
 
   C = marian::make_tensor({batchSize, M, N});
-  ProdBatchedOld(C, A, B, (transA == 'T'), (transB == 'T'), alpha, beta);
+  ProdBatchedOld(C, A, B, (transA == 'T'), (transB == 'T'), beta, alpha);
+  std::cout << A << std::endl;
+  std::cout << B << std::endl;
   std::cout << C << std::endl;
 
   return 0;
