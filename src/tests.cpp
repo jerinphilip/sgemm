@@ -19,7 +19,7 @@ TEST(Tensor, creation) {
   ASSERT_EQ(true, true);
 }
 
-void compare_random(std::string Provider1, std::string Provider2) {
+void compare_random(Provider Provider1, Provider Provider2) {
   const size_t m = 20, k = 10, n = 30, batchSize = 2;
   const float alpha = 2.0, beta = 3.0;
 
@@ -37,11 +37,11 @@ void compare_random(std::string Provider1, std::string Provider2) {
 
       auto C1 = marian::make_tensor({batchSize, m, n});
 
-      dispatch(Provider1, C1, A, B, transA, transB, beta, alpha);
+      GemmBatchedDispatchByProvider(Provider1, C1, A, B, transA, transB, beta, alpha);
       SGEMM_DEBUG(C1);
 
       auto C2 = marian::make_tensor({batchSize, m, n});
-      dispatch(Provider2, C2, A, B, transA, transB, beta, alpha);
+      GemmBatchedDispatchByProvider(Provider2, C2, A, B, transA, transB, beta, alpha);
       SGEMM_DEBUG(C2);
 
       bool close = marian::is_close(C1, C2);
@@ -52,24 +52,24 @@ void compare_random(std::string Provider1, std::string Provider2) {
 
 #if defined(MARIAN_WITH_RUY_SGEMM) && defined(MARIAN_WITH_MKL)
 TEST(RuyVsMKL, Combinations) {
-  compare_random("ruy", "mkl");
+  compare_random(Provider::kRuy, Provider::kMKL);
 }
 #endif  // defined(MARIAN_WITH_RUY_SGEMM) && defined(MARIAN_WITH_MKL)
 
 #if defined(MARIAN_WITH_RUY_SGEMM) && defined(MARIAN_WITH_EIGEN_SGEMM)
 TEST(RuyVsEigen, Combinations) {
-  compare_random("ruy", "eigen");
+  compare_random(Provider::kRuy, Provider::kEigen);
 }
 #endif  // defined(MARIAN_WITH_RUY_SGEMM) && defined(MARIAN_WITH_EIGEN_SGEMM)
 
 #if defined(MARIAN_WITH_MKL) && defined(MARIAN_WITH_EIGEN_SGEMM)
 TEST(MKLVsEigen, Combinations) {
-  compare_random("mkl", "eigen");
+  compare_random(Provider::kMKL, Provider::kEigen);
 }
 #endif  //defined(MARIAN_WITH_MKL) && defined(MARIAN_WITH_EIGEN_SGEMM)
 
 #if defined(MARIAN_WITH_BLAS) && defined(MARIAN_WITH_EIGEN_SGEMM)
 TEST(BLASVsEigen, Combinations) {
-  compare_random("blas", "eigen");
+  compare_random(Provider::kBLAS, Provider::kEigen);
 }
 #endif  //defined(MARIAN_WITH_BLAS) && defined(MARIAN_WITH_EIGEN_SGEMM)

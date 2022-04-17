@@ -120,15 +120,14 @@ void ProdBatchedOld(marian::Tensor C,
                     float beta,
                     float alpha);
 
-// Convenience function to dispatch GEMM by means of string provider.
-void dispatch(std::string provider,
-              marian::Tensor C,
-              const marian::Tensor A,
-              const marian::Tensor B,
-              bool transA,
-              bool transB,
-              float beta,
-              float alpha);
+void GemmBatchedDispatchByProvider(Provider provider,
+                                   marian::Tensor C,
+                                   const marian::Tensor A,
+                                   const marian::Tensor B,
+                                   bool transA,
+                                   bool transB,
+                                   float beta,
+                                   float alpha);
 
 // We have flattened declarations/definitions. Options at provider for
 // GemmBatched<provider>, Gemm<provider> exist. A sane default can be choosen
@@ -136,7 +135,7 @@ void dispatch(std::string provider,
 // TODO: Currently compile time, work out run-time.
 
 // clang-format off
-static const Provider kChosenProvider = std::max({
+static const Provider kHighestProvider = std::max({
        Provider::kNone
 #ifdef MARIAN_WITH_RUY_SGEMM
      , Provider::kRuy

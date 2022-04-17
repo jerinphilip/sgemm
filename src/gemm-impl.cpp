@@ -127,54 +127,6 @@ inline void Gemm<Provider::kBLAS>(const bool transA,
 }
 #endif  // MARIAN_WITH_BLAS
 
-// Translates marian::Tensor to GEMM API args.
-inline void inferGemmParamsFromTensor(marian::Tensor C,
-                                      marian::Tensor A,
-                                      marian::Tensor B,
-                                      bool transA,
-                                      bool transB,
-                                      size_t &M,
-                                      size_t &N,
-                                      size_t &K,
-                                      size_t &lda,
-                                      size_t &ldb,
-                                      size_t &ldc,
-                                      size_t &batchSize) {
-  // Incoming matrices are row-major storage format.
-  // N1 x N2 x .. N_k x rows x cols
-  //                     -2  x - 1
-  M = A->shape()[-2];
-  K = A->shape()[-1];
-
-  lda = A->shape()[-1];
-  ldb = B->shape()[-1];
-
-  if(transA) {
-    std::swap(M, K);
-  }
-
-  size_t L;
-  L = B->shape()[-2];
-  N = B->shape()[-1];
-
-  if(transB) {
-    std::swap(L, N);
-  }
-
-  // To be compliant for matrix multiplication.
-  auto computeBatchSize = [](const marian::Tensor &T, int rows, int cols) {
-    return T->shape().size() / (rows * cols);
-  };
-
-  assert(L == K);
-  assert(computeBatchSize(A, M, K) == computeBatchSize(B, K, N));
-  assert(computeBatchSize(A, M, K) == computeBatchSize(C, M, N));
-
-  batchSize = A->shape().size() / (M * K);
-
-  ldc = N;
-}
-
 #ifdef MARIAN_WITH_RUY_SGEMM
 namespace {
 
@@ -435,6 +387,31 @@ __UNROLL(Provider::kEigen);
 
 #undef __UNROLL
 
+inline Provider EnvironmentCPUID() {
+#if defined(_MSC_VER)
+  char env_override[11];
+  size_t len = 0;
+  if(getenv_s(&len, env_override, sizeof(env_override), "MARIAN_SGEMM_PROVIDER"))
+    return kHighestProvider;
+  if(!len)
+    return kHighestProvider;
+#else
+  const char *env_override = getenv("MARIAN_SGEMM_PROVIDER");
+  if(!env_override)
+    return kHighestProvider; /* This will be capped to actual ID */
+#endif
+  if(!strcmp(env_override, "EIGEN"))
+    return Provider::kEigen;
+  if(!strcmp(env_override, "RUY"))
+    return Provider::kRuy;
+  if(!strcmp(env_override, "BLAS"))
+    return Provider::kBLAS;
+  if(!strcmp(env_override, "MKL"))
+    return Provider::kMKL;
+  fprintf(stderr, "Ignoring unrecognized MARIAN_SGEMM_PROVIDER %s\n", env_override);
+  return kHighestProvider;
+}
+
 void ProdBatchedOld(marian::Tensor C,
                     const marian::Tensor A,
                     const marian::Tensor B,
@@ -442,35 +419,47 @@ void ProdBatchedOld(marian::Tensor C,
                     bool transB,
                     float beta,
                     float alpha) {
-  size_t M, K, N, lda, ldb, ldc, batchSize;
-  inferGemmParamsFromTensor(C, A, B, transA, transB, M, N, K, lda, ldb, ldc, batchSize);
-  GemmBatched<kChosenProvider>(transA,
-                               transB,
-                               M,
-                               N,
-                               K,
-                               alpha,
-                               A->data(),
-                               lda,
-                               B->data(),
-                               ldb,
-                               beta,
-                               C->data(),
-                               ldc,
-                               batchSize);
+  Provider kChosenProvider = std::min(kHighestProvider, EnvironmentCPUID());
+  GemmBatchedDispatchByProvider(kChosenProvider, C, A, B, transA, transB, beta, alpha);
 }
 
-void dispatch(std::string provider,
-              marian::Tensor C,
-              const marian::Tensor A,
-              const marian::Tensor B,
-              bool transA,
-              bool transB,
-              float beta,
-              float alpha) {
-  size_t M, N, K, batchSize, lda, ldb, ldc;
-  inferGemmParamsFromTensor(C, A, B, transA, transB, M, N, K, lda, ldb, ldc, batchSize);
+void GemmBatchedDispatchByProvider(Provider provider,
+                                   marian::Tensor C,
+                                   const marian::Tensor A,
+                                   const marian::Tensor B,
+                                   bool transA,
+                                   bool transB,
+                                   float beta,
+                                   float alpha) {
+  // Infer GEMM parameters from marian::Tensor and transpose information
 
+  size_t M, N, K, batchSize, lda, ldb, ldc;
+  // Incoming matrices are row-major storage format.
+  // N1 x N2 x .. N_k x rows x cols
+  //                     -2  x - 1
+  M = A->shape()[-2];
+  K = A->shape()[-1];
+
+  if(transA) {
+    std::swap(M, K);
+  }
+
+  size_t L;
+  L = B->shape()[-2];
+  N = B->shape()[-1];
+
+  if(transB) {
+    std::swap(L, N);
+  }
+
+  lda = A->shape()[-1];
+  ldb = B->shape()[-1];
+
+  batchSize = A->shape().size() / (M * K);
+
+  ldc = N;
+
+  // Dispatch to the relevant GEMM function.
   void (*gemmFn)(const bool transA,
                  const bool transB,
                  const int M,
@@ -487,16 +476,12 @@ void dispatch(std::string provider,
                  int batchSize)
       = nullptr;
 
-  if(provider == "ruy") {
-    gemmFn = &GemmBatched<Provider::kRuy>;
-  } else if(provider == "mkl") {
-    gemmFn = &GemmBatched<Provider::kMKL>;
-  } else if(provider == "blas") {
-    gemmFn = &GemmBatched<Provider::kBLAS>;
-  } else if(provider == "eigen") {
-    gemmFn = &GemmBatched<Provider::kEigen>;
-  } else {
-    ABORT("Unknown Gemm Provider {}", provider);
+  switch(provider) {
+    case Provider::kRuy: gemmFn = &GemmBatched<Provider::kRuy>; break;
+    case Provider::kMKL: gemmFn = &GemmBatched<Provider::kMKL>; break;
+    case Provider::kBLAS: gemmFn = &GemmBatched<Provider::kBLAS>; break;
+    case Provider::kEigen: gemmFn = &GemmBatched<Provider::kEigen>; break;
+    default: ABORT("Unknown Gemm Provider {}", (int)provider); break;
   }
 
   // Make call
