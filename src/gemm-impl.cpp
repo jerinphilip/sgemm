@@ -178,8 +178,6 @@ inline void Gemm<Provider::kRuy>(const bool transA,
   const auto orderA = (transA ? ruy::Order::kColMajor : ruy::Order::kRowMajor);
   const auto orderB = (transB ? ruy::Order::kColMajor : ruy::Order::kRowMajor);
 
-  AlignedVector<float> intermediate(M * N);
-
   ruy::Matrix<float> lhs;
   ruy::MakeSimpleLayout(M, K, orderA, lhs.mutable_layout());
   lhs.set_data(A);
@@ -189,81 +187,40 @@ inline void Gemm<Provider::kRuy>(const bool transA,
   rhs.set_data(B);
 
   ruy::Matrix<float> dst;
-  ruy::MakeSimpleLayout(M, N, ruy::Order::kRowMajor, dst.mutable_layout());
-  dst.set_data(intermediate.data());
 
-  ruy::MulParams<float, float> mul_params;
-  ruy::Mul(lhs, rhs, mul_params, &context, &dst);
-
-  // Write out C as C = alpha * [op(A) * op(B)] + beta * C
-  // Can we expect the compiler to autovectorize this?
-  // TODO: Come back and explicitly use SIMD.
-  const size_t size    = M * N;
-  const float *opA_opB = intermediate.data();
-#pragma clang loop vectorize(enable) interleave(enable)
-  for(size_t i = 0; i < size; i++) {
-    C[i] = alpha * opA_opB[i] + beta * C[i];
-  }
-}
-
-// We need a temporary matrix for ruy based GEMM computations. The
-// GemmBatched<kRuy> specialization makes only one allocation.  Otherwise, same
-// as Gemm<kRuy> around a for loop.
-template <>
-void GemmBatched<Provider::kRuy>(const bool transA,
-                                 const bool transB,
-                                 const int M,
-                                 const int N,
-                                 const int K,
-                                 const float alpha,
-                                 const float *A,
-                                 const int lda,
-                                 const float *B,
-                                 const int ldb,
-                                 const float beta,
-                                 float *C,
-                                 const int ldc,
-                                 int batchSize) {
-  ruy::Context context;
-
-  // If we need to transpose, we can swap dimensions in layout claim the matrix
-  // is just column-major. Set ordering so transpose.
-  const auto orderA = (transA ? ruy::Order::kColMajor : ruy::Order::kRowMajor);
-  const auto orderB = (transB ? ruy::Order::kColMajor : ruy::Order::kRowMajor);
-
-  size_t strideA = M * K;
-  size_t strideB = K * N;
-  size_t strideC = M * N;
-
-  // Compute AB (op(A)*op(B), given we have configured transpose)
-  // Ruy allows some form of bias
-  AlignedVector<float> intermediate(batchSize * M * N);
-
-  for(size_t batchId = 0; batchId < batchSize; batchId++) {
-    ruy::Matrix<float> lhs;
-    ruy::MakeSimpleLayout(M, K, orderA, lhs.mutable_layout());
-    lhs.set_data(A + batchId * strideA);
-
-    ruy::Matrix<float> rhs;
-    ruy::MakeSimpleLayout(K, N, orderB, rhs.mutable_layout());
-    rhs.set_data(B + batchId * strideB);
-
-    ruy::Matrix<float> dst;
+  if(beta == 0) {
     ruy::MakeSimpleLayout(M, N, ruy::Order::kRowMajor, dst.mutable_layout());
-    dst.set_data(intermediate.data() + batchId * strideC);
-
+    // Use the outside provided allocation to store the multiple result
+    dst.set_data(C);
     ruy::MulParams<float, float> mul_params;
     ruy::Mul(lhs, rhs, mul_params, &context, &dst);
-  }
-
-  // Write out C as C = alpha * [op(A) * op(B)] + beta * C
-  // Can we expect the compiler to autovectorize this?
-  // TODO: Come back and explicitly use SIMD.
-  const size_t cSize   = batchSize * M * N;
-  const float *opA_opB = intermediate.data();
+    // Write out C as C = alpha * [op(A) * op(B)] + beta * C
+    // Can we expect the compiler to autovectorize this?
+    // TODO: Come back and explicitly use SIMD.
+    const size_t size    = M * N;
+    const float *opA_opB = C;  // Alias.
 #pragma clang loop vectorize(enable) interleave(enable)
-  for(size_t i = 0; i < cSize; i++) {
-    C[i] = alpha * opA_opB[i] + beta * C[i];
+    for(size_t i = 0; i < size; i++) {
+      C[i] = alpha * opA_opB[i];
+    }
+  } else {
+    // @jerinphilip has not yet been able to find a ruy primitive that does in place addition to obtain full gemm.
+    // Safe bet is to make an additional allocation to store the result of multiply  and use the existing values in C.
+    AlignedVector<float> intermediate(M * N);
+    ruy::MakeSimpleLayout(M, N, ruy::Order::kRowMajor, dst.mutable_layout());
+    dst.set_data(intermediate.data());
+    ruy::MulParams<float, float> mul_params;
+    ruy::Mul(lhs, rhs, mul_params, &context, &dst);
+
+    // Write out C as C = alpha * [op(A) * op(B)] + beta * C
+    // Can we expect the compiler to autovectorize this?
+    // TODO: Come back and explicitly use SIMD.
+    const size_t size    = M * N;
+    const float *opA_opB = intermediate.data();
+#pragma clang loop vectorize(enable) interleave(enable)
+    for(size_t i = 0; i < size; i++) {
+      C[i] = alpha * opA_opB[i] + beta * C[i];
+    }
   }
 }
 
@@ -384,6 +341,11 @@ __UNROLL(Provider::kBLAS);
 #ifdef MARIAN_WITH_EIGEN_SGEMM
 __UNROLL(Provider::kEigen);
 #endif  // MARIAN_WITH_EIGEN_SGEMM
+
+// Applied to kRuy
+#ifdef MARIAN_WITH_RUY_SGEMM
+__UNROLL(Provider::kRuy);
+#endif  // MARIAN_WITH_RUY_SGEMM
 
 #undef __UNROLL
 
