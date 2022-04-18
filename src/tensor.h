@@ -1,11 +1,44 @@
 #pragma once
+#include <cstdlib>
 #include <memory>
 #include <numeric>
 #include <sstream>
 #include <vector>
 #include "utils.h"
 
+#ifdef _WIN32
+#include <malloc.h>
+#endif
+
 namespace marian {
+
+const size_t ALIGNMENT = 256;
+
+#ifdef _WIN32
+inline void *genericMalloc(size_t alignment, size_t size) {
+  void *ret = _aligned_malloc(size, alignment);
+  ABORT_IF(!ret, "Failed to allocate memory on CPU");
+  return ret;
+}
+inline void genericFree(void *ptr) {
+  _aligned_free(ptr);
+}
+#else
+// Linux and OS X.  There is no fallback to malloc because we need it to be aligned.
+inline void *genericMalloc(size_t alignment, size_t size) {
+  // On macos, aligned_alloc is available only on c++17
+  // Furthermore, it requires that the memory requested is an exact multiple of the alignment, otherwise it fails.
+  // posix_memalign is available both Mac (Since 2016) and Linux and in both gcc and clang
+  void *result;
+  // Error could be detected by return value or just remaining nullptr.
+  ABORT_IF(posix_memalign(&result, alignment, size), "Failed to allocate memory on CPU");
+  return result;
+}
+
+inline void genericFree(void *ptr) {
+  free(ptr);
+}
+#endif
 
 // A replacement for marian::Shape. Mostly copied over.
 struct Shape {
@@ -75,16 +108,22 @@ private:
 // Minimum stub
 struct _Tensor {
 public:
-  _Tensor(const std::initializer_list<size_t> &ls) : shape_(ls), data_(shape_.size()) {
-    std::fill(data_.begin(), data_.end(), 1);
+  _Tensor(const std::initializer_list<size_t> &ls) : shape_(ls) {
+    data_ = genericMalloc(ALIGNMENT, sizeof(float) * shape_.size());
+    std::fill(data(), data() + shape_.size(), 1);
   }
   const Shape &shape() const { return shape_; }
-  const float *cdata() const { return data_.data(); }
-  float *data() { return data_.data(); }
+  const float *cdata() const { return reinterpret_cast<const float *>(data_); }
+  float *data() { return reinterpret_cast<float *>(data_); }
+
+  _Tensor(const _Tensor &) = delete;
+  _Tensor &operator=(const _Tensor &) = delete;
+
+  ~_Tensor() { genericFree(data_); }
 
 private:
   Shape shape_;
-  std::vector<float> data_;
+  void *data_;
 };
 
 typedef std::shared_ptr<_Tensor> Tensor;
