@@ -387,7 +387,7 @@ __UNROLL(Provider::kEigen);
 
 #undef __UNROLL
 
-inline Provider EnvironmentCPUID() {
+inline Provider EnvironmentProvider() {
 #if defined(_MSC_VER)
   char env_override[11];
   size_t len = 0;
@@ -419,7 +419,7 @@ void ProdBatchedOld(marian::Tensor C,
                     bool transB,
                     float beta,
                     float alpha) {
-  static const Provider kEnvironmentProvider = EnvironmentCPUID();
+  static const Provider kEnvironmentProvider = EnvironmentProvider();
 
   Provider kChosenProvider = std::min(kHighestProvider, kEnvironmentProvider);
 
@@ -440,6 +440,7 @@ void GemmBatchedDispatchByProvider(Provider provider,
   // Incoming matrices are row-major storage format.
   // N1 x N2 x .. N_k x rows x cols
   //                     -2  x - 1
+
   M = A->shape()[-2];
   K = A->shape()[-1];
 
