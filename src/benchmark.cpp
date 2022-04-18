@@ -29,6 +29,8 @@ int main(int argc, char *argv[]) {
   app.add_option("--colsB"      , maxN       , "Cols of B, must be greater than 64");
   app.add_option("--iterations" , iterations , "Number of iterations");
   app.add_option("--seed"       , seed       , "Seed for random init");
+  app.add_option("--alpha"      , alpha      , "Alpha for BLAS");
+  app.add_option("--beta"       , beta       , "Beta for BLAS");
   // clang-format on
 
   CLI11_PARSE(app, argc, argv);
