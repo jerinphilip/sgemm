@@ -295,59 +295,125 @@ inline void GemmBatched<Provider::kMKL>(const bool transA,
 
 // GemmBatched<> by means of looping Gemm<>, applies to kEigen and kBLAS which
 // doesn't have a more optimal batched-variant.
-#define __UNROLL(provider)                             \
-  template <>                                          \
-  inline void GemmBatched<provider>(const bool transA, \
-                                    const bool transB, \
-                                    const int M,       \
-                                    const int N,       \
-                                    const int K,       \
-                                    const float alpha, \
-                                    const float *A,    \
-                                    const int lda,     \
-                                    const float *B,    \
-                                    const int ldb,     \
-                                    const float beta,  \
-                                    float *C,          \
-                                    const int ldc,     \
-                                    int batchSize) {   \
-    size_t strideA = M * K;                            \
-    size_t strideB = K * N;                            \
-    size_t strideC = M * N;                            \
-                                                       \
-    for(size_t i = 0; i < batchSize; ++i) {            \
-      Gemm<provider>(transA,                           \
-                     transB,                           \
-                     M,                                \
-                     N,                                \
-                     K,                                \
-                     alpha,                            \
-                     A + i * strideA,                  \
-                     lda,                              \
-                     B + i * strideB,                  \
-                     ldb,                              \
-                     beta,                             \
-                     C + i * strideC,                  \
-                     ldc);                             \
-    }                                                  \
-  }
 
 // Applied to kBLAS
 #ifdef MARIAN_WITH_BLAS
-__UNROLL(Provider::kBLAS);
+template <>
+inline void GemmBatched<Provider::kBLAS>(const bool transA,
+                                         const bool transB,
+                                         const int M,
+                                         const int N,
+                                         const int K,
+                                         const float alpha,
+                                         const float *A,
+                                         const int lda,
+                                         const float *B,
+                                         const int ldb,
+                                         const float beta,
+                                         float *C,
+                                         const int ldc,
+                                         int batchSize) {
+  size_t strideA = M * K;
+  size_t strideB = K * N;
+  size_t strideC = M * N;
+
+  for(size_t i = 0; i < batchSize; ++i) {
+    Gemm<Provider::kBLAS>(transA,
+                          transB,
+                          M,
+                          N,
+                          K,
+                          alpha,
+                          A + i * strideA,
+                          lda,
+                          B + i * strideB,
+                          ldb,
+                          beta,
+                          C + i * strideC,
+                          ldc);
+  }
+}
+
 #endif  // MARIAN_WITH_BLAS
 
 // Applied to kEigen
 #ifdef MARIAN_WITH_EIGEN_SGEMM
-__UNROLL(Provider::kEigen);
+template <>
+inline void GemmBatched<Provider::kEigen>(const bool transA,
+                                          const bool transB,
+                                          const int M,
+                                          const int N,
+                                          const int K,
+                                          const float alpha,
+                                          const float *A,
+                                          const int lda,
+                                          const float *B,
+                                          const int ldb,
+                                          const float beta,
+                                          float *C,
+                                          const int ldc,
+                                          int batchSize) {
+  size_t strideA = M * K;
+  size_t strideB = K * N;
+  size_t strideC = M * N;
+
+  for(size_t i = 0; i < batchSize; ++i) {
+    Gemm<Provider::kEigen>(transA,
+                           transB,
+                           M,
+                           N,
+                           K,
+                           alpha,
+                           A + i * strideA,
+                           lda,
+                           B + i * strideB,
+                           ldb,
+                           beta,
+                           C + i * strideC,
+                           ldc);
+  }
+}
+
 #endif  // MARIAN_WITH_EIGEN_SGEMM
 
 // Applied to kRuy
 #ifdef MARIAN_WITH_RUY_SGEMM
-__UNROLL(Provider::kRuy);
-#endif  // MARIAN_WITH_RUY_SGEMM
+template <>
+inline void GemmBatched<Provider::kRuy>(const bool transA,
+                                        const bool transB,
+                                        const int M,
+                                        const int N,
+                                        const int K,
+                                        const float alpha,
+                                        const float *A,
+                                        const int lda,
+                                        const float *B,
+                                        const int ldb,
+                                        const float beta,
+                                        float *C,
+                                        const int ldc,
+                                        int batchSize) {
+  size_t strideA = M * K;
+  size_t strideB = K * N;
+  size_t strideC = M * N;
 
-#undef __UNROLL
+  for(size_t i = 0; i < batchSize; ++i) {
+    Gemm<Provider::kRuy>(transA,
+                         transB,
+                         M,
+                         N,
+                         K,
+                         alpha,
+                         A + i * strideA,
+                         lda,
+                         B + i * strideB,
+                         ldb,
+                         beta,
+                         C + i * strideC,
+                         ldc);
+  }
+}
+#endif  // MARIAN_WITH_RUY_SGEMM
 
 inline Provider EnvironmentProvider() {
 #if defined(_MSC_VER)
