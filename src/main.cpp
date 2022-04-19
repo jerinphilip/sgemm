@@ -45,10 +45,12 @@ int main(int argc, char *argv[]) {
   }
 
   C = marian::make_tensor({batchSize, M, N});
+  std::cout << "A: \n " << A << std::endl;
+  std::cout << "B: \n " << B << std::endl;
+  std::cout << "C: \n" << C << std::endl;
+
   ProdBatchedOld(C, A, B, (transA == 'T'), (transB == 'T'), beta, alpha);
-  std::cout << A << std::endl;
-  std::cout << B << std::endl;
-  std::cout << C << std::endl;
+  std::cout << "alpha*op(A)*op(B) + beta*C: \n" << C << std::endl;
 
   return 0;
 }
