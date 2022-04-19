@@ -187,13 +187,18 @@ inline void Gemm<Provider::kRuy>(const bool transA,
   rhs.set_data(B);
 
   ruy::Matrix<float> dst;
+  ruy::MakeSimpleLayout(M, N, ruy::Order::kRowMajor, dst.mutable_layout());
 
   if(beta == 0) {
-    ruy::MakeSimpleLayout(M, N, ruy::Order::kRowMajor, dst.mutable_layout());
-    // Use the outside provided allocation to store the multiple result
+    // For beta = 0, we want to avoid the additional allocation. This is a
+    // large amount of our inference use-cases. sgemm is called with `beta` for
+    // accumulating gradients in backpropogation, which is 0.0 during
+    // inference.
+
     dst.set_data(C);
     ruy::MulParams<float, float> mul_params;
     ruy::Mul(lhs, rhs, mul_params, &context, &dst);
+
     // Write out C as C = alpha * [op(A) * op(B)] + beta * C
     // Can we expect the compiler to autovectorize this?
     // TODO: Come back and explicitly use SIMD.
@@ -204,10 +209,15 @@ inline void Gemm<Provider::kRuy>(const bool transA,
       C[i] = alpha * opA_opB[i];
     }
   } else {
-    // @jerinphilip has not yet been able to find a ruy primitive that does in place addition to obtain full gemm.
-    // Safe bet is to make an additional allocation to store the result of multiply  and use the existing values in C.
+    // @jerinphilip has not yet been able to find a ruy primitive that does in
+    // place addition to obtain full gemm.
+    //
+    // Safe bet is to make an additional allocation to store the result of
+    // multiply  and use the existing values in C.
+    //
+    // See also: https://github.com/google/ruy/issues/307
+
     AlignedVector<float> intermediate(M * N);
-    ruy::MakeSimpleLayout(M, N, ruy::Order::kRowMajor, dst.mutable_layout());
     dst.set_data(intermediate.data());
     ruy::MulParams<float, float> mul_params;
     ruy::Mul(lhs, rhs, mul_params, &context, &dst);
