@@ -98,6 +98,34 @@ inline void GemmBatched(const bool transA,
                         const int ldc,
                         int batchSize);
 
+// We have flattened declarations/definitions. Options at provider for
+// GemmBatched<provider>, Gemm<provider> exist. A sane default can be choosen
+// at run-time by adjusting precedence in the sequence below.
+// TODO: Currently compile time, work out run-time.
+
+// clang-format off
+static const Provider kHighestProvider = std::max({
+       Provider::kNone
+#ifdef MARIAN_WITH_RUY_SGEMM
+     , Provider::kRuy
+#endif  // MARIAN_WITH_RUY_SGEMM
+#ifdef MARIAN_WITH_MKL
+    , Provider::kMKL
+#endif  // MARIAN_WITH_MKL
+#ifdef MARIAN_WITH_EIGEN_SGEMM
+    , Provider::kEigen
+#endif  // MARIAN_WITH_EIGEN_SGEMM
+#ifdef MARIAN_WITH_BLAS
+    , Provider::kBLAS
+#endif  // MARIAN_WITH_BLAS
+});
+// clang-format on
+
+#ifndef SGEMM_IMPL_
+#define SGEMM_IMPL_
+#include "gemm-impl.cpp"
+#endif
+
 // A marian function which dispatches to the relevant GEMM function which is
 // one of the specializations of the above declaration.
 //
@@ -128,34 +156,6 @@ void GemmBatchedDispatchByProvider(Provider provider,
                                    bool transB,
                                    float beta,
                                    float alpha);
-
-// We have flattened declarations/definitions. Options at provider for
-// GemmBatched<provider>, Gemm<provider> exist. A sane default can be choosen
-// at run-time by adjusting precedence in the sequence below.
-// TODO: Currently compile time, work out run-time.
-
-// clang-format off
-static const Provider kHighestProvider = std::max({
-       Provider::kNone
-#ifdef MARIAN_WITH_RUY_SGEMM
-     , Provider::kRuy
-#endif  // MARIAN_WITH_RUY_SGEMM
-#ifdef MARIAN_WITH_MKL
-    , Provider::kMKL
-#endif  // MARIAN_WITH_MKL
-#ifdef MARIAN_WITH_EIGEN_SGEMM
-    , Provider::kEigen
-#endif  // MARIAN_WITH_EIGEN_SGEMM
-#ifdef MARIAN_WITH_BLAS
-    , Provider::kBLAS
-#endif  // MARIAN_WITH_BLAS
-});
-// clang-format on
-
-#ifndef SGEMM_IMPL_
-#define SGEMM_IMPL_
-#include "gemm-impl.cpp"
-#endif
 
 }  // namespace gemm
 }  // namespace marian

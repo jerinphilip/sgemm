@@ -35,7 +35,7 @@ option(MARIAN_WITH_APPLE_ACCELERATE "Compile with apple-accelerate support" OFF)
 
 add_subdirectory(3rd-party)
 
-add_library(marian_sgemm STATIC src/tensor.cpp)
+add_library(marian_sgemm STATIC src/tensor.cpp src/gemm.cpp)
 target_include_directories(marian_sgemm PUBLIC ${CMAKE_SOURCE_DIR})
 
 find_package(Threads REQUIRED)
