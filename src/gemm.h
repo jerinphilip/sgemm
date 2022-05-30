@@ -67,6 +67,8 @@ enum class Provider {
   kARMPL = 5   // ARM Performance Library
 };
 
+// A Gemm API that allows keeping multiple providers in the same source without
+// violating the one-definition-rule (ODR).
 template <enum Provider>
 inline void Gemm(const bool transA,
                  const bool transB,
@@ -82,6 +84,12 @@ inline void Gemm(const bool transA,
                  float *C,
                  const int ldc);
 
+// The batched version of Gemm. Can be trivially implemented for a provider if
+// Gemm<provider> exists by explicitly looping on the batch index and
+// applying sgemm on the individual matrices.
+//
+// When a more performant path exists (e.g: Intel MKL, cblas_sgemm_batch),
+// template specialization allows to call the performant path.
 template <enum Provider>
 inline void GemmBatched(const bool transA,
                         const bool transB,
@@ -98,10 +106,19 @@ inline void GemmBatched(const bool transA,
                         const int ldc,
                         int batchSize);
 
+// The template implementations are in the below implementation file.
+#ifndef SGEMM_IMPL_
+#define SGEMM_IMPL_
+#include "gemm-impl.cpp"
+#endif
+
 // We have flattened declarations/definitions. Options at provider for
-// GemmBatched<provider>, Gemm<provider> exist. A sane default can be choosen
-// at run-time by adjusting precedence in the sequence below.
-// TODO: Currently compile time, work out run-time.
+// GemmBatched<provider>, Gemm<provider> exist. The highest available provider
+// in the compiled library can be marked by adjusting precedence in the
+// sequence below.
+//
+// The choice of the default path is this value, unless an environment override
+// indicates explictly to use another.
 
 // clang-format off
 static const Provider kHighestProvider = std::max({
@@ -121,10 +138,14 @@ static const Provider kHighestProvider = std::max({
 });
 // clang-format on
 
-#ifndef SGEMM_IMPL_
-#define SGEMM_IMPL_
-#include "gemm-impl.cpp"
-#endif
+void GemmBatchedDispatchByProvider(Provider provider,
+                                   marian::Tensor C,
+                                   const marian::Tensor A,
+                                   const marian::Tensor B,
+                                   bool transA,
+                                   bool transB,
+                                   float beta,
+                                   float alpha);
 
 // A marian function which dispatches to the relevant GEMM function which is
 // one of the specializations of the above declaration.
@@ -147,15 +168,6 @@ void ProdBatchedOld(marian::Tensor C,
                     bool transB,
                     float beta,
                     float alpha);
-
-void GemmBatchedDispatchByProvider(Provider provider,
-                                   marian::Tensor C,
-                                   const marian::Tensor A,
-                                   const marian::Tensor B,
-                                   bool transA,
-                                   bool transB,
-                                   float beta,
-                                   float alpha);
 
 }  // namespace gemm
 }  // namespace marian

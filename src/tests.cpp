@@ -22,11 +22,13 @@ TEST(Tensor, creation) {
 void compare_random(Provider Provider1, Provider Provider2) {
   const size_t m = 20, k = 10, n = 30, batchSize = 2;
 
-  const float alpha = 2.0;
-
   // There is a beta = 0 fast special case for ruy. It is important that this
   // codepath be tested.
   const std::vector<float> betaU = {0.0, 3.0};
+
+  // There is an alpha = 1.0 special case as well, where the product flops can
+  // be ignored because identity.
+  const std::vector<float> alphaU = {1.0, 2.0};
 
   std::vector<bool> transU = {true, false};
 
@@ -42,16 +44,18 @@ void compare_random(Provider Provider1, Provider Provider2) {
       B = transB ? generate(n, k) : generate(k, n);
 
       for(const float &beta : betaU) {
-        auto C1 = marian::make_tensor({batchSize, m, n});
-        GemmBatchedDispatchByProvider(Provider1, C1, A, B, transA, transB, beta, alpha);
-        SGEMM_DEBUG(C1);
+        for(const float &alpha : alphaU) {
+          auto C1 = marian::make_tensor({batchSize, m, n});
+          GemmBatchedDispatchByProvider(Provider1, C1, A, B, transA, transB, beta, alpha);
+          SGEMM_DEBUG(C1);
 
-        auto C2 = marian::make_tensor({batchSize, m, n});
-        GemmBatchedDispatchByProvider(Provider2, C2, A, B, transA, transB, beta, alpha);
-        SGEMM_DEBUG(C2);
+          auto C2 = marian::make_tensor({batchSize, m, n});
+          GemmBatchedDispatchByProvider(Provider2, C2, A, B, transA, transB, beta, alpha);
+          SGEMM_DEBUG(C2);
 
-        bool close = marian::is_close(C1, C2);
-        ASSERT_EQ(close, true);
+          bool close = marian::is_close(C1, C2);
+          ASSERT_EQ(close, true);
+        }
       }
     }
   }
